@@ -1,0 +1,725 @@
+/**
+ * Sequence parser for NAV-mode input.
+ *
+ * This module converts buffered key sequences into structured commands used by
+ * the dispatcher. It also identifies partial sequences that require time-based
+ * fallback behavior.
+ */
+import { MIV_KEYS, isDigitKey } from './config';
+
+export type ParsedAction =
+  | 'cursorLeft'
+  | 'cursorRight'
+  | 'cursorUp'
+  | 'cursorDown'
+  | 'cursorPageUp'
+  | 'cursorPageDown'
+  | 'cursorWordLeft'
+  | 'cursorWordRight'
+  | 'cursorWordEndLeft'
+  | 'cursorWordEndRight'
+  | 'cursorLineStart'
+  | 'cursorLineEnd'
+  | 'deleteCharRight'
+  | 'deleteWordRight'
+  | 'deleteToLineEnd'
+  | 'operatorMotion'
+  | 'deleteLine'
+  | 'pasteBefore'
+  | 'changeToLineEnd'
+  | 'changeLine'
+  | 'jumpBracketMatch'
+  | 'joinLineWithNext'
+  | 'replaceWord'
+  | 'replaceChar'
+  | 'enterInsert'
+  | 'insertAtLineStart'
+  | 'insertAtLineEnd'
+  | 'openLineBelow'
+  | 'openLineAbove'
+  | 'undo'
+  | 'paste'
+  | 'pasteAfter'
+  | 'pasteRegister'
+  | 'yankWord'
+  | 'storeRegister'
+  | 'showRegisters'
+  | 'yankLines'
+  | 'repeatLastCommand'
+  | 'forwardSearch'
+  | 'gotoLine'
+  | 'builtinEdit'
+  | 'textObjectOperation';
+
+export interface ParsedCommand {
+  sequence: string;
+  action: ParsedAction;
+  vscodeCommand?: string;
+  args?: unknown[];
+}
+
+export type ParseStatus = 'complete' | 'partial' | 'invalid';
+
+export interface ParseResult {
+  status: ParseStatus;
+  command?: ParsedCommand;
+  fallbackCommand?: ParsedCommand;
+  fallbackDelayMs?: number;
+}
+
+// Motion definitions are intentionally centralized here so parsing and
+// operator+motion resolution share one lookup table.
+const MOTION_TABLE: Record<string, ParsedCommand> = {
+  [MIV_KEYS.navigation.left]: {
+    sequence: MIV_KEYS.navigation.left,
+    action: 'cursorLeft',
+    vscodeCommand: 'cursorLeft'
+  },
+  [MIV_KEYS.navigation.right]: {
+    sequence: MIV_KEYS.navigation.right,
+    action: 'cursorRight',
+    vscodeCommand: 'cursorRight'
+  },
+  [MIV_KEYS.navigation.up]: {
+    sequence: MIV_KEYS.navigation.up,
+    action: 'cursorUp',
+    vscodeCommand: 'cursorUp'
+  },
+  [MIV_KEYS.navigation.down]: {
+    sequence: MIV_KEYS.navigation.down,
+    action: 'cursorDown',
+    vscodeCommand: 'cursorDown'
+  },
+  [MIV_KEYS.navigation.pageUp]: {
+    sequence: MIV_KEYS.navigation.pageUp,
+    action: 'cursorPageUp',
+    vscodeCommand: 'cursorPageUp'
+  },
+  [MIV_KEYS.navigation.pageDown]: {
+    sequence: MIV_KEYS.navigation.pageDown,
+    action: 'cursorPageDown',
+    vscodeCommand: 'cursorPageDown'
+  },
+  [MIV_KEYS.navigation.lineStart]: {
+    sequence: MIV_KEYS.navigation.lineStart,
+    action: 'cursorLineStart',
+    vscodeCommand: 'cursorHome'
+  },
+  [MIV_KEYS.navigation.lineEnd]: {
+    sequence: MIV_KEYS.navigation.lineEnd,
+    action: 'cursorLineEnd',
+    vscodeCommand: 'cursorEnd'
+  },
+  [MIV_KEYS.navigation.wordLeft]: {
+    sequence: MIV_KEYS.navigation.wordLeft,
+    action: 'cursorWordLeft',
+    vscodeCommand: 'cursorWordLeft'
+  },
+  [MIV_KEYS.navigation.wordRight]: {
+    sequence: MIV_KEYS.navigation.wordRight,
+    action: 'cursorWordEndRight',
+    vscodeCommand: 'cursorWordEndRight'
+  },
+  [MIV_KEYS.navigation.wordEndLeft]: {
+    sequence: MIV_KEYS.navigation.wordEndLeft,
+    action: 'cursorWordEndLeft',
+    vscodeCommand: 'cursorWordEndLeft'
+  },
+  [MIV_KEYS.navigation.wordEndRight]: {
+    sequence: MIV_KEYS.navigation.wordEndRight,
+    action: 'cursorWordRight',
+    vscodeCommand: 'cursorWordStartRight'
+  }
+};
+
+const SINGLE_KEY_COMMANDS: Record<string, ParsedCommand> = {
+  [MIV_KEYS.operators.delete]: {
+    sequence: MIV_KEYS.operators.delete,
+    action: 'deleteCharRight',
+    vscodeCommand: 'deleteRight'
+  },
+  [MIV_KEYS.operators.replace]: {
+    sequence: MIV_KEYS.operators.replace,
+    action: 'replaceChar'
+  },
+  [MIV_KEYS.commands.deleteWord]: {
+    sequence: MIV_KEYS.commands.deleteWord,
+    action: 'deleteWordRight',
+    vscodeCommand: 'deleteWordRight'
+  },
+  [MIV_KEYS.commands.deleteToLineEnd]: {
+    sequence: MIV_KEYS.commands.deleteToLineEnd,
+    action: 'deleteToLineEnd'
+  },
+  [MIV_KEYS.commands.replaceWord]: {
+    sequence: MIV_KEYS.commands.replaceWord,
+    action: 'replaceWord'
+  },
+  [MIV_KEYS.commands.pasteBefore]: {
+    sequence: MIV_KEYS.commands.pasteBefore,
+    action: 'pasteBefore'
+  },
+  [MIV_KEYS.commands.changeToLineEnd]: {
+    sequence: MIV_KEYS.commands.changeToLineEnd,
+    action: 'changeToLineEnd'
+  },
+  [MIV_KEYS.commands.changeLine]: {
+    sequence: MIV_KEYS.commands.changeLine,
+    action: 'changeLine'
+  },
+  [MIV_KEYS.commands.jumpBracketMatch]: {
+    sequence: MIV_KEYS.commands.jumpBracketMatch,
+    action: 'jumpBracketMatch'
+  },
+  [MIV_KEYS.commands.joinLineWithNext]: {
+    sequence: MIV_KEYS.commands.joinLineWithNext,
+    action: 'joinLineWithNext'
+  },
+  [MIV_KEYS.commands.repeat]: { sequence: MIV_KEYS.commands.repeat, action: 'repeatLastCommand' },
+  [MIV_KEYS.commands.repeatAlias]: { sequence: MIV_KEYS.commands.repeatAlias, action: 'repeatLastCommand' },
+  [MIV_KEYS.commands.insert]: { sequence: MIV_KEYS.commands.insert, action: 'enterInsert' },
+  [MIV_KEYS.commands.insertLineStart]: { sequence: MIV_KEYS.commands.insertLineStart, action: 'insertAtLineStart' },
+  [MIV_KEYS.commands.insertLineEnd]: { sequence: MIV_KEYS.commands.insertLineEnd, action: 'insertAtLineEnd' },
+  [MIV_KEYS.commands.openLineBelow]: { sequence: MIV_KEYS.commands.openLineBelow, action: 'openLineBelow' },
+  [MIV_KEYS.commands.openLineAbove]: { sequence: MIV_KEYS.commands.openLineAbove, action: 'openLineAbove' },
+  [MIV_KEYS.commands.undo]: { sequence: MIV_KEYS.commands.undo, action: 'undo', vscodeCommand: 'undo' },
+  [MIV_KEYS.commands.deleteLine]: {
+    sequence: MIV_KEYS.commands.deleteLine,
+    action: 'deleteLine',
+    vscodeCommand: 'editor.action.deleteLines',
+    args: [1]
+  },
+  [MIV_KEYS.commands.gotoLine]: {
+    sequence: MIV_KEYS.commands.gotoLine,
+    action: 'gotoLine',
+    args: [1]
+  },
+  [MIV_KEYS.operators.yank]: { sequence: MIV_KEYS.operators.yank, action: 'yankLines', args: [1] },
+  [MIV_KEYS.commands.yankWord]: { sequence: MIV_KEYS.commands.yankWord, action: 'yankWord', args: [1] },
+  [MIV_KEYS.operators.paste]: {
+    sequence: MIV_KEYS.operators.paste,
+    action: 'pasteAfter',
+    vscodeCommand: 'editor.action.clipboardPasteAction'
+  },
+  [MIV_KEYS.registers.viewer]: {
+    sequence: MIV_KEYS.registers.viewer,
+    action: 'showRegisters',
+    vscodeCommand: 'miv.showRegisters'
+  },
+  [MIV_KEYS.commands.searchForward]: {
+    sequence: MIV_KEYS.commands.searchForward,
+    action: 'forwardSearch',
+    vscodeCommand: 'actions.find'
+  },
+  [MIV_KEYS.commands.docBottom]: {
+    sequence: MIV_KEYS.commands.docBottom,
+    action: 'cursorLineEnd',
+    vscodeCommand: 'cursorBottom'
+  }
+};
+
+const PARTIAL_SEQUENCE_RESULTS: Record<string, ParseResult> = {};
+
+const COMPLETE_EXACT_COMMANDS: Record<string, ParsedCommand> = {};
+
+const INVALID_RESULT: ParseResult = { status: 'invalid' };
+
+type SequenceHandler = (buffer: string) => ParseResult;
+
+const PREFIX_SEQUENCE_HANDLERS: Record<string, SequenceHandler> = {
+  [MIV_KEYS.operators.yank]: parseOperatorMotionSequence
+};
+
+const TEXT_OBJECT_KEYS = new Set<string>([
+  MIV_KEYS.textObjects.auto,
+  MIV_KEYS.textObjects.doubleQuote,
+  MIV_KEYS.textObjects.singleQuote,
+  MIV_KEYS.textObjects.paren,
+  MIV_KEYS.textObjects.bracket,
+  MIV_KEYS.textObjects.brace,
+  MIV_KEYS.textObjects.angle
+]);
+
+const TEXT_OBJECT_COMMAND_KEYS = new Set<string>([
+  MIV_KEYS.operators.delete,
+  MIV_KEYS.operators.yank,
+  MIV_KEYS.operators.paste
+]);
+
+/**
+ * Parse a key sequence produced by the NAV input buffer.
+ *
+ * Parameters:
+ *   buffer - Current accumulated key sequence.
+ *
+ * Returns:
+ *   ParseResult describing whether the sequence is complete, partial, or invalid.
+ */
+export function parseInput(buffer: string): ParseResult {
+  if (buffer.length === 0) {
+    return INVALID_RESULT;
+  }
+
+  const textObjectResult = parseTextObjectCommand(buffer);
+  if (textObjectResult) {
+    return textObjectResult;
+  }
+
+  const registerTargetedPartial = parseSpaceRegisterTargetedPartial(buffer);
+  if (registerTargetedPartial) {
+    return registerTargetedPartial;
+  }
+
+  const registerTargeted = parseSpaceRegisterTargetedCommand(buffer);
+  if (registerTargeted) {
+    return registerTargeted;
+  }
+
+  const registerStoreResult = parseRegisterStoreSequence(buffer);
+  if (registerStoreResult) {
+    return registerStoreResult;
+  }
+
+  const registerPasteResult = parseRegisterPrefixedPaste(buffer);
+  if (registerPasteResult) {
+    return registerPasteResult;
+  }
+
+  const yankCountResult = parseYankCount(buffer);
+  if (yankCountResult) {
+    return yankCountResult;
+  }
+
+  const motionCountResult = parseMotionCount(buffer);
+  if (motionCountResult) {
+    return motionCountResult;
+  }
+
+  return parseCommandSequence(buffer);
+}
+
+function parseTextObjectCommand(buffer: string): ParseResult | undefined {
+  if (!TEXT_OBJECT_KEYS.has(buffer[0])) {
+    return undefined;
+  }
+
+  if (buffer[0] === MIV_KEYS.textObjects.auto) {
+    return parseAutoTextObjectCommand(buffer);
+  }
+
+  if (buffer.length === 1) {
+    return { status: 'partial' };
+  }
+
+  if (buffer[1] !== ' ') {
+    return INVALID_RESULT;
+  }
+
+  if (buffer.length === 2) {
+    return { status: 'partial' };
+  }
+
+  const registerKey = buffer[2];
+  if (!isDigitKey(registerKey)) {
+    return INVALID_RESULT;
+  }
+
+  if (buffer.length === 3) {
+    return { status: 'partial' };
+  }
+
+  if (buffer.length !== 4) {
+    return INVALID_RESULT;
+  }
+
+  const commandKey = buffer[3];
+  if (!TEXT_OBJECT_COMMAND_KEYS.has(commandKey)) {
+    return INVALID_RESULT;
+  }
+
+  return {
+    status: 'complete',
+    command: {
+      sequence: buffer,
+      action: 'textObjectOperation',
+      args: [buffer[0], registerKey, commandKey]
+    }
+  };
+}
+
+function parseAutoTextObjectCommand(buffer: string): ParseResult {
+  if (buffer.length === 1) {
+    return { status: 'partial' };
+  }
+
+  if (buffer.length !== 2) {
+    return INVALID_RESULT;
+  }
+
+  const commandKey = buffer[1];
+  if (!TEXT_OBJECT_COMMAND_KEYS.has(commandKey)) {
+    return INVALID_RESULT;
+  }
+
+  return {
+    status: 'complete',
+    command: {
+      sequence: buffer,
+      action: 'textObjectOperation',
+      args: [MIV_KEYS.textObjects.auto, getDefaultTextObjectRegister(commandKey), commandKey]
+    }
+  };
+}
+
+function getDefaultTextObjectRegister(commandKey: string): string {
+  if (commandKey === MIV_KEYS.operators.yank) {
+    return '0';
+  }
+
+  if (commandKey === MIV_KEYS.operators.paste) {
+    return '9';
+  }
+
+  return '8';
+}
+
+/**
+ * Resolve a motion key to the VS Code cursor command used by operator motions.
+ *
+ * Parameters:
+ *   motionKey - Normalized motion token (for example `a`, `D`, `e`).
+ *
+ * Returns:
+ *   VS Code command id, or undefined for unknown motions.
+ */
+export function getMotionVscodeCommand(motionKey: string): string | undefined {
+  return MOTION_TABLE[motionKey]?.vscodeCommand;
+}
+
+/**
+ * Parse yank-line count forms.
+ *
+ * Examples:
+ *   `10y`.
+ */
+function parseYankCount(buffer: string): ParseResult | undefined {
+  const match = buffer.match(/^([0-9]+)y$/);
+  if (!match) {
+    return undefined;
+  }
+
+  const count = Number.parseInt(match[1], 10);
+  return {
+    status: 'complete',
+    command: {
+      sequence: buffer,
+      action: 'yankLines',
+      args: [count]
+    }
+  };
+}
+
+/**
+ * Parse count-prefixed motion forms.
+ *
+ * This handles sequences like `10w`. Counts apply only when the rest of the
+ * sequence is a motion token.
+ */
+function parseMotionCount(buffer: string): ParseResult | undefined {
+  const countPrefixMatch = buffer.match(/^([0-9]+)(.+)?$/);
+  if (!countPrefixMatch) {
+    return undefined;
+  }
+
+  const [, countString, rest] = countPrefixMatch;
+  if (!rest) {
+    return { status: 'partial' };
+  }
+
+  // Reject malformed count chains such as "10 2w" / "102w" style inputs.
+  if (isDigitKey(rest[0])) {
+    return INVALID_RESULT;
+  }
+
+  const motion = MOTION_TABLE[rest];
+  if (motion) {
+    return {
+      status: 'complete',
+      command: {
+        sequence: buffer,
+        action: motion.action,
+        vscodeCommand: motion.vscodeCommand,
+        args: [Number.parseInt(countString, 10)]
+      }
+    };
+  }
+
+  const count = Number.parseInt(countString, 10);
+  const immediateCountCommand = parseImmediateCountCommand(rest, count, buffer);
+  if (immediateCountCommand) {
+    return immediateCountCommand;
+  }
+
+  return parseCommandSequence(rest);
+}
+
+/**
+ * Parse non-counted command sequences.
+ *
+ * Resolution order:
+ *   1) exact partial/fallback forms
+ *   2) exact complete forms
+ *   3) single-key motions
+ *   4) single-key commands
+ *   5) prefix handlers (`x*`, `y*`, `p*`)
+ */
+function parseCommandSequence(buffer: string): ParseResult {
+  const gotoLineResult = parseGotoLine(buffer);
+  if (gotoLineResult) {
+    return gotoLineResult;
+  }
+
+  const partial = PARTIAL_SEQUENCE_RESULTS[buffer];
+  if (partial) {
+    return partial;
+  }
+
+  const exactCommand = COMPLETE_EXACT_COMMANDS[buffer];
+  if (exactCommand) {
+    return { status: 'complete', command: exactCommand };
+  }
+
+  const motion = MOTION_TABLE[buffer];
+  if (motion) {
+    return { status: 'complete', command: motion };
+  }
+
+  const singleCommand = SINGLE_KEY_COMMANDS[buffer];
+  if (singleCommand) {
+    return { status: 'complete', command: singleCommand };
+  }
+
+  const prefixHandler = PREFIX_SEQUENCE_HANDLERS[buffer[0]];
+  if (prefixHandler) {
+    return prefixHandler(buffer);
+  }
+
+  return INVALID_RESULT;
+}
+
+function parseGotoLine(buffer: string): ParseResult | undefined {
+  if (buffer === MIV_KEYS.commands.gotoLine) {
+    return {
+      status: 'complete',
+      command: {
+        sequence: buffer,
+        action: 'gotoLine',
+        args: [1]
+      }
+    };
+  }
+
+  return undefined;
+}
+
+function parseRegisterPrefixedPaste(buffer: string): ParseResult | undefined {
+  if (buffer.length !== 2 || !isDigitKey(buffer[0]) || buffer[0] === '0' || buffer[1] !== MIV_KEYS.operators.paste) {
+    return undefined;
+  }
+
+  return {
+    status: 'complete',
+    command: {
+      sequence: buffer,
+      action: 'pasteRegister',
+      args: [buffer[0]]
+    }
+  };
+}
+
+function parseRegisterStoreSequence(buffer: string): ParseResult | undefined {
+  if (!buffer.endsWith(MIV_KEYS.registers.viewer) || !isDigitsOnly(buffer.slice(0, -1))) {
+    return undefined;
+  }
+
+  if (buffer.length !== 2 || buffer[0] === '0') {
+    return INVALID_RESULT;
+  }
+
+  return {
+    status: 'complete',
+    command: {
+      sequence: buffer,
+      action: 'storeRegister',
+      args: [buffer[0]]
+    }
+  };
+}
+
+function parseSpaceRegisterTargetedCommand(buffer: string): ParseResult | undefined {
+  const match = buffer.match(/^([0-9]+)\s([0-9])([xy])$/);
+  if (!match) {
+    return undefined;
+  }
+
+  const [, countRaw, register, command] = match;
+  const parsedCount = Number.parseInt(countRaw, 10);
+  const count = Number.isFinite(parsedCount) && parsedCount > 0 ? parsedCount : 1;
+
+  if (command === MIV_KEYS.operators.delete) {
+    return {
+      status: 'complete',
+      command: {
+        sequence: buffer,
+        action: 'deleteCharRight',
+        args: [count, register]
+      }
+    };
+  }
+
+  if (command === MIV_KEYS.operators.yank) {
+    return {
+      status: 'complete',
+      command: {
+        sequence: buffer,
+        action: 'yankLines',
+        args: [count, register]
+      }
+    };
+  }
+
+  return INVALID_RESULT;
+}
+
+function parseSpaceRegisterTargetedPartial(buffer: string): ParseResult | undefined {
+  if (/^([0-9]+)\s$/.test(buffer) || /^([0-9]+)\s[0-9]$/.test(buffer)) {
+    return { status: 'partial' };
+  }
+
+  return undefined;
+}
+
+function parseImmediateCountCommand(commandKey: string, count: number, sequence: string): ParseResult | undefined {
+  if (commandKey === MIV_KEYS.operators.delete) {
+    return {
+      status: 'complete',
+      command: {
+        sequence,
+        action: 'deleteCharRight',
+        args: [count]
+      }
+    };
+  }
+
+  if (commandKey === MIV_KEYS.operators.yank) {
+    return {
+      status: 'complete',
+      command: {
+        sequence,
+        action: 'yankLines',
+        args: [count]
+      }
+    };
+  }
+
+  if (commandKey === MIV_KEYS.commands.deleteLine) {
+    return {
+      status: 'complete',
+      command: {
+        sequence,
+        action: 'deleteLine',
+        vscodeCommand: 'editor.action.deleteLines',
+        args: [count]
+      }
+    };
+  }
+
+  if (commandKey === MIV_KEYS.commands.deleteWord) {
+    return {
+      status: 'complete',
+      command: {
+        sequence,
+        action: 'deleteWordRight',
+        args: [count]
+      }
+    };
+  }
+
+  if (commandKey === MIV_KEYS.commands.deleteToLineEnd) {
+    return {
+      status: 'complete',
+      command: {
+        sequence,
+        action: 'deleteToLineEnd',
+        args: [count]
+      }
+    };
+  }
+
+  if (commandKey === MIV_KEYS.commands.yankWord) {
+    return {
+      status: 'complete',
+      command: {
+        sequence,
+        action: 'yankWord',
+        args: [count]
+      }
+    };
+  }
+
+  if (commandKey === MIV_KEYS.commands.gotoLine) {
+    return {
+      status: 'complete',
+      command: {
+        sequence,
+        action: 'gotoLine',
+        args: [count]
+      }
+    };
+  }
+
+  return undefined;
+}
+
+/**
+ * Check whether a string contains only decimal digits.
+ */
+function isDigitsOnly(value: string): boolean {
+  return value.length > 0 && /^[0-9]+$/.test(value);
+}
+
+/**
+ * Parse operator+motion grammar.
+ *
+ * Parameters:
+ *   buffer - Two-character sequence where first key is an operator.
+ *
+ * Returns:
+ *   Complete operatorMotion command when the second key is a known motion.
+ */
+function parseOperatorMotionSequence(buffer: string): ParseResult {
+  if (buffer.length !== 2) {
+    return INVALID_RESULT;
+  }
+
+  const operator = buffer[0];
+  if (operator !== MIV_KEYS.operators.yank) {
+    return INVALID_RESULT;
+  }
+  const motionKey = buffer[1];
+  if (motionKey === MIV_KEYS.navigation.up) {
+    return INVALID_RESULT;
+  }
+  if (!MOTION_TABLE[motionKey]) {
+    return INVALID_RESULT;
+  }
+
+  return {
+    status: 'complete',
+    command: {
+      sequence: buffer,
+      action: 'operatorMotion',
+      args: [operator, motionKey]
+    }
+  };
+}

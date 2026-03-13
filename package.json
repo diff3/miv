@@ -1,0 +1,347 @@
+{
+  "name": "miv",
+  "displayName": "miv",
+  "description": "Modern Improved Vi",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.110.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "miv.handleKey",
+        "title": "miv: Handle Key"
+      },
+      {
+        "command": "miv.toggleMode",
+        "title": "miv: Toggle Mode"
+      },
+      {
+        "command": "miv.toNavMode",
+        "title": "miv: Enter NAV Mode"
+      },
+      {
+        "command": "miv.executeBuiltin",
+        "title": "miv: Execute Built-in Command"
+      },
+      {
+        "command": "miv.copyToClipboard",
+        "title": "miv: Copy To Clipboard"
+      },
+      {
+        "command": "miv.pasteFromClipboard",
+        "title": "miv: Paste From Clipboard"
+      },
+      {
+        "command": "miv.storeRegister",
+        "title": "miv: Store Register"
+      },
+      {
+        "command": "miv.showRegisters",
+        "title": "miv: Show Registers"
+      },
+      {
+        "command": "miv.setAnchor",
+        "title": "miv: Set Anchor"
+      },
+      {
+        "command": "miv.jumpToAnchor",
+        "title": "miv: Jump To Anchor"
+      },
+      {
+        "command": "miv.showCommandStats",
+        "title": "miv: Show Command Stats"
+      }
+    ],
+    "keybindings": [
+      {
+        "key": "a",
+        "command": "miv.handleKey",
+        "args": "a",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "d",
+        "command": "miv.handleKey",
+        "args": "d",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "w",
+        "command": "miv.handleKey",
+        "args": "w",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+w",
+        "command": "miv.handleKey",
+        "args": "W",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "s",
+        "command": "miv.handleKey",
+        "args": "s",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+s",
+        "command": "miv.handleKey",
+        "args": "S",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+a",
+        "command": "miv.handleKey",
+        "args": "A",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+d",
+        "command": "miv.handleKey",
+        "args": "D",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "q",
+        "command": "miv.handleKey",
+        "args": "q",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "e",
+        "command": "miv.handleKey",
+        "args": "e",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+q",
+        "command": "miv.handleKey",
+        "args": "Q",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+e",
+        "command": "miv.handleKey",
+        "args": "E",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "x",
+        "command": "miv.handleKey",
+        "args": "x",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "b",
+        "command": "miv.handleKey",
+        "args": "b",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+x",
+        "command": "miv.handleKey",
+        "args": "X",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+y",
+        "command": "miv.handleKey",
+        "args": "Y",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "space",
+        "command": "miv.handleKey",
+        "args": " ",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+1",
+        "command": "miv.handleKey",
+        "args": "!",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "r",
+        "command": "miv.handleKey",
+        "args": "r",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+r",
+        "command": "miv.handleKey",
+        "args": "R",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "c",
+        "command": "miv.handleKey",
+        "args": "c",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": ".",
+        "command": "miv.handleKey",
+        "args": ".",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "i",
+        "command": "miv.handleKey",
+        "args": "i",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+i",
+        "command": "miv.handleKey",
+        "args": "I",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "k",
+        "command": "miv.handleKey",
+        "args": "k",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "u",
+        "command": "miv.handleKey",
+        "args": "u",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "y",
+        "command": "miv.handleKey",
+        "args": "y",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "o",
+        "command": "miv.handleKey",
+        "args": "o",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+o",
+        "command": "miv.handleKey",
+        "args": "O",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "p",
+        "command": "miv.handleKey",
+        "args": "p",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "v",
+        "command": "miv.handleKey",
+        "args": "v",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "/",
+        "command": "miv.handleKey",
+        "args": "/",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "g",
+        "command": "miv.handleKey",
+        "args": "g",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+g",
+        "command": "miv.handleKey",
+        "args": "G",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "alt+a",
+        "command": "miv.executeBuiltin",
+        "args": [
+          "workbench.action.navigateBack"
+        ],
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "alt+d",
+        "command": "miv.executeBuiltin",
+        "args": [
+          "workbench.action.navigateForward"
+        ],
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "alt+z",
+        "command": "miv.setAnchor",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "alt+x",
+        "command": "miv.jumpToAnchor",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "ctrl+f",
+        "command": "miv.executeBuiltin",
+        "args": [
+          "actions.find"
+        ],
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "ctrl+c",
+        "command": "miv.copyToClipboard",
+        "when": "editorTextFocus"
+      },
+      {
+        "key": "cmd+c",
+        "command": "miv.copyToClipboard",
+        "when": "editorTextFocus"
+      },
+      {
+        "key": "ctrl+v",
+        "command": "miv.pasteFromClipboard",
+        "when": "editorTextFocus"
+      },
+      {
+        "key": "cmd+v",
+        "command": "miv.pasteFromClipboard",
+        "when": "editorTextFocus"
+      },
+      {
+        "key": "escape",
+        "command": "miv.toNavMode",
+        "when": "editorTextFocus"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.110.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "typescript-eslint": "^8.56.1",
+    "eslint": "^9.39.3",
+    "typescript": "^5.9.3",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
