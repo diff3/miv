@@ -62,6 +62,10 @@
       {
         "command": "miv.searchBackspace",
         "title": "miv: Search Backspace"
+      },
+      {
+        "command": "miv.toggleSearchHighlight",
+        "title": "MIV: Toggle Search Highlight"
       }
     ],
     "keybindings": [
@@ -186,6 +190,18 @@
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
+        "key": "§",
+        "command": "miv.handleKey",
+        "args": "§",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+§",
+        "command": "miv.handleKey",
+        "args": "°",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
         "key": "c",
         "command": "miv.handleKey",
         "args": "c",
@@ -252,6 +268,12 @@
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
+        "key": "=",
+        "command": "miv.handleKey",
+        "args": "=",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
         "key": "/",
         "command": "miv.handleKey",
         "args": "/",
@@ -261,6 +283,12 @@
         "key": "\\",
         "command": "miv.handleKey",
         "args": "\\",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": ",",
+        "command": "miv.handleKey",
+        "args": ",",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {

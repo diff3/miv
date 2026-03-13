@@ -30,7 +30,11 @@ export type ParsedAction =
   | 'changeLine'
   | 'jumpBracketMatch'
   | 'joinLineWithNext'
+  | 'setReplaceRule'
+  | 'applyReplaceRule'
   | 'replaceWord'
+  | 'toggleCaseChar'
+  | 'toggleCaseWord'
   | 'replaceChar'
   | 'enterInsert'
   | 'insertAtLineStart'
@@ -48,6 +52,7 @@ export type ParsedAction =
   | 'repeatLastCommand'
   | 'forwardSearch'
   | 'backwardSearch'
+  | 'regexSearch'
   | 'searchNext'
   | 'searchPrevious'
   | 'gotoLine'
@@ -154,6 +159,14 @@ const SINGLE_KEY_COMMANDS: Record<string, ParsedCommand> = {
     sequence: MIV_KEYS.commands.replaceWord,
     action: 'replaceWord'
   },
+  [MIV_KEYS.commands.toggleCaseChar]: {
+    sequence: MIV_KEYS.commands.toggleCaseChar,
+    action: 'toggleCaseChar'
+  },
+  [MIV_KEYS.commands.toggleCaseWord]: {
+    sequence: MIV_KEYS.commands.toggleCaseWord,
+    action: 'toggleCaseWord'
+  },
   [MIV_KEYS.commands.pasteBefore]: {
     sequence: MIV_KEYS.commands.pasteBefore,
     action: 'pasteBefore'
@@ -173,6 +186,10 @@ const SINGLE_KEY_COMMANDS: Record<string, ParsedCommand> = {
   [MIV_KEYS.commands.joinLineWithNext]: {
     sequence: MIV_KEYS.commands.joinLineWithNext,
     action: 'joinLineWithNext'
+  },
+  [MIV_KEYS.commands.replaceMatches]: {
+    sequence: MIV_KEYS.commands.replaceMatches,
+    action: 'applyReplaceRule'
   },
   [MIV_KEYS.commands.repeat]: { sequence: MIV_KEYS.commands.repeat, action: 'repeatLastCommand' },
   [MIV_KEYS.commands.repeatAlias]: { sequence: MIV_KEYS.commands.repeatAlias, action: 'repeatLastCommand' },
@@ -212,6 +229,10 @@ const SINGLE_KEY_COMMANDS: Record<string, ParsedCommand> = {
   [MIV_KEYS.commands.searchBackward]: {
     sequence: MIV_KEYS.commands.searchBackward,
     action: 'backwardSearch'
+  },
+  [MIV_KEYS.commands.searchRegex]: {
+    sequence: MIV_KEYS.commands.searchRegex,
+    action: 'regexSearch'
   },
   [MIV_KEYS.commands.searchNext]: {
     sequence: MIV_KEYS.commands.searchNext,
@@ -271,6 +292,11 @@ export function parseInput(buffer: string): ParseResult {
     return INVALID_RESULT;
   }
 
+  const replaceRuleResult = parseReplaceRuleSequence(buffer);
+  if (replaceRuleResult) {
+    return replaceRuleResult;
+  }
+
   const textObjectResult = parseTextObjectCommand(buffer);
   if (textObjectResult) {
     return textObjectResult;
@@ -307,6 +333,82 @@ export function parseInput(buffer: string): ParseResult {
   }
 
   return parseCommandSequence(buffer);
+}
+
+function parseReplaceRuleSequence(buffer: string): ParseResult | undefined {
+  if (!buffer.startsWith(MIV_KEYS.commands.replaceMatches)) {
+    return undefined;
+  }
+
+  if (buffer === MIV_KEYS.commands.replaceMatches) {
+    return {
+      status: 'partial',
+      fallbackCommand: {
+        sequence: buffer,
+        action: 'applyReplaceRule'
+      }
+    };
+  }
+
+  const parts = parseReplaceRuleParts(buffer.slice(1).trim());
+  if (!parts) {
+    return { status: 'partial' };
+  }
+
+  return {
+    status: 'complete',
+    command: {
+      sequence: buffer,
+      action: 'setReplaceRule',
+      args: parts
+    }
+  };
+}
+
+function parseReplaceRuleParts(input: string): [string] | [string, string] | undefined {
+  const parts: string[] = [];
+  let index = 0;
+
+  while (index < input.length && parts.length < 2) {
+    while (index < input.length && /\s/.test(input[index])) {
+      index += 1;
+    }
+
+    if (index >= input.length) {
+      break;
+    }
+
+    if (input[index] === '\'') {
+      const closingQuote = input.indexOf('\'', index + 1);
+      if (closingQuote === -1) {
+        return undefined;
+      }
+
+      parts.push(input.slice(index + 1, closingQuote));
+      index = closingQuote + 1;
+      continue;
+    }
+
+    const nextWhitespace = input.slice(index).search(/\s/);
+    if (nextWhitespace === -1) {
+      parts.push(input.slice(index));
+      index = input.length;
+      continue;
+    }
+
+    parts.push(input.slice(index, index + nextWhitespace));
+    index += nextWhitespace;
+  }
+
+  while (index < input.length && /\s/.test(input[index])) {
+    index += 1;
+  }
+
+  if ((parts.length !== 1 && parts.length !== 2) || index !== input.length) {
+    return undefined;
+  }
+
+  return parts.length === 1 ? [parts[0]] : [parts[0], parts[1]];
 }
 
 function parseTextObjectCommand(buffer: string): ParseResult | undefined {

@@ -36,6 +36,12 @@ const DEFAULT_PARTIAL_FALLBACK_DELAY_MS = CONFIG.timeouts.sequence;
 export function activate(context: vscode.ExtensionContext): void {
   const state = createInitialState();
   const statsOutput = vscode.window.createOutputChannel('MIV Stats');
+  const searchDecoration = vscode.window.createTextEditorDecorationType({
+    backgroundColor: 'rgba(255,255,0,0.25)'
+  });
+  const searchCurrentDecoration = vscode.window.createTextEditorDecorationType({
+    backgroundColor: 'rgba(255,180,0,0.45)'
+  });
   let buffer = '';
   let lastClipboard = '';
   let fallbackTimer: NodeJS.Timeout | undefined;
@@ -61,6 +67,8 @@ export function activate(context: vscode.ExtensionContext): void {
     // Full reset is used when a command boundary is reached.
     clearFallbackTimer();
     buffer = '';
+    state.replaceRuleInputActive = false;
+    state.replaceRuleBuffer = '';
     ui.showCommandPreview(undefined);
   };
 
@@ -101,13 +109,18 @@ export function activate(context: vscode.ExtensionContext): void {
       return undefined as never;
     }
 
-    return `${state.search.direction === 'forward' ? '/' : '\\'}${state.search.query}`;
+    const prefix = state.search.kind === 'regex'
+      ? MIV_KEYS.commands.searchRegexPrompt
+      : state.search.direction === 'forward'
+        ? MIV_KEYS.commands.searchForward
+        : MIV_KEYS.commands.searchBackward;
+    return `${prefix}${state.search.query}`;
   };
 
-  const startSearchInput = (direction: 'forward' | 'backward'): void => {
+  const startSearchInput = (direction: 'forward' | 'backward', kind: 'literal' | 'regex' = 'literal'): void => {
     resetInputState();
     state.searchInputActive = true;
-    state.search = { query: '', direction };
+    state.search = { query: '', direction, kind };
     ui.showCommandPreview(getSearchPreviewText());
   };
 
@@ -121,7 +134,147 @@ export function activate(context: vscode.ExtensionContext): void {
     ui.showCommandPreview(state.searchInputActive ? getSearchPreviewText() : undefined);
   };
 
-  const executeNativeSearch = async (query: string, direction: 'forward' | 'backward'): Promise<boolean> => {
+  const isSearchInputPrefixKey = (key: string): boolean => {
+    if (!state.search) {
+      return false;
+    }
+
+    if (state.search.kind === 'regex') {
+      return key === MIV_KEYS.commands.searchRegex;
+    }
+
+    return key === (
+      state.search.direction === 'forward'
+        ? MIV_KEYS.commands.searchForward
+        : MIV_KEYS.commands.searchBackward
+    );
+  };
+
+  const updateReplaceRulePreview = (): void => {
+    ui.showCommandPreview(state.replaceRuleInputActive ? state.replaceRuleBuffer : undefined);
+  };
+
+  const collectLiteralMatchOffsets = (text: string, pattern: string): number[] => {
+    if (pattern.length === 0) {
+      return [];
+    }
+
+    const matches: number[] = [];
+    let index = text.indexOf(pattern);
+    while (index !== -1) {
+      matches.push(index);
+      index = text.indexOf(pattern, index + pattern.length);
+    }
+    return matches;
+  };
+
+  const collectRegexMatches = (text: string, pattern: string): { offsets: number[]; lengths: number[] } | undefined => {
+    if (pattern.length === 0) {
+      return { offsets: [], lengths: [] };
+    }
+
+    try {
+      const regex = new RegExp(pattern, 'g');
+      const offsets: number[] = [];
+      const lengths: number[] = [];
+      for (const match of text.matchAll(regex)) {
+        if (match.index === undefined) {
+          continue;
+        }
+
+        const matchedText = match[0] ?? '';
+        offsets.push(match.index);
+        lengths.push(Math.max(matchedText.length, 1));
+      }
+      return { offsets, lengths };
+    } catch {
+      return undefined;
+    }
+  };
+
+  const jumpToMatch = (editor: vscode.TextEditor, index: number): void => {
+    const offset = state.lastMatchList[index];
+    if (offset === undefined) {
+      return;
+    }
+
+    const position = editor.document.positionAt(offset);
+    const selection = new vscode.Selection(position, position);
+    editor.selection = selection;
+    editor.revealRange(new vscode.Range(position, position));
+  };
+
+  const clearSearchHighlights = (editor?: vscode.TextEditor): void => {
+    const activeEditor = editor ?? vscode.window.activeTextEditor;
+    if (!activeEditor) {
+      return;
+    }
+
+    activeEditor.setDecorations(searchDecoration, []);
+    activeEditor.setDecorations(searchCurrentDecoration, []);
+  };
+
+  const applySearchHighlights = (editor: vscode.TextEditor): void => {
+    if (!state.searchHighlightEnabled || !state.searchHighlightVisible || state.lastMatchList.length === 0 || state.lastMatchPattern.length === 0) {
+      clearSearchHighlights(editor);
+      return;
+    }
+
+    const allRanges: vscode.Range[] = [];
+    const currentRanges: vscode.Range[] = [];
+    for (let index = 0; index < state.lastMatchList.length; index += 1) {
+      const matchOffset = state.lastMatchList[index];
+      const start = editor.document.positionAt(matchOffset);
+      const matchLength = state.lastMatchLengths[index] ?? state.lastMatchPattern.length;
+      const end = editor.document.positionAt(matchOffset + matchLength);
+      const range = new vscode.Range(start, end);
+      if (index === state.currentMatchIndex) {
+        currentRanges.push(range);
+      } else {
+        allRanges.push(range);
+      }
+    }
+
+    editor.setDecorations(searchDecoration, allRanges);
+    editor.setDecorations(searchCurrentDecoration, currentRanges);
+  };
+
+  const renderSearchHighlights = (editor?: vscode.TextEditor): void => {
+    const activeEditor = editor ?? vscode.window.activeTextEditor;
+    if (!activeEditor) {
+      return;
+    }
+
+    applySearchHighlights(activeEditor);
+  };
+
+  const updateCurrentSearchHighlight = (editor?: vscode.TextEditor): void => {
+    const activeEditor = editor ?? vscode.window.activeTextEditor;
+    if (!activeEditor) {
+      return;
+    }
+
+    applySearchHighlights(activeEditor);
+  };
+
+  const collectMatchData = (
+    text: string,
+    pattern: string,
+    isRegex: boolean
+  ): { offsets: number[]; lengths: number[] } | undefined => {
+    return isRegex
+      ? collectRegexMatches(text, pattern)
+      : {
+          offsets: collectLiteralMatchOffsets(text, pattern),
+          lengths: []
+        };
+  };
+
+  const executeNativeSearch = async (
+    query: string,
+    direction: 'forward' | 'backward',
+    kind: 'literal' | 'regex' = 'literal'
+  ): Promise<boolean> => {
     const editor = vscode.window.activeTextEditor;
     if (!editor || query.length === 0) {
       return false;
@@ -129,22 +282,39 @@ export function activate(context: vscode.ExtensionContext): void {
 
     const text = editor.document.getText();
     const offset = editor.document.offsetAt(editor.selection.active);
-    const matchOffset = direction === 'forward'
-      ? text.indexOf(query, offset + 1)
-      : text.lastIndexOf(query, offset - 1);
+    const matchData = collectMatchData(text, query, kind === 'regex');
+    if (!matchData) {
+      ui.showMessage(`invalid regex: ${query}`);
+      return false;
+    }
 
-    if (matchOffset < 0) {
+    const { offsets: matches, lengths } = matchData;
+    if (matches.length === 0) {
       ui.showMessage(`not found: ${query}`);
       return false;
     }
 
-    const position = editor.document.positionAt(matchOffset);
-    const selection = new vscode.Selection(position, position);
-    editor.selection = selection;
-    editor.revealRange(new vscode.Range(position, position));
-    state.lastSearch = query;
-    state.lastSearchDirection = direction;
-    state.search = { query, direction };
+    const matchIndex = direction === 'forward'
+      ? (() => {
+          const index = matches.findIndex((matchOffset) => matchOffset > offset);
+          return index >= 0 ? index : matches.length - 1;
+        })()
+      : (() => {
+          for (let index = matches.length - 1; index >= 0; index -= 1) {
+            if (matches[index] < offset) {
+              return index;
+            }
+          }
+          return 0;
+        })();
+
+    state.lastMatchList = matches;
+    state.lastMatchLengths = lengths.length > 0 ? lengths : matches.map(() => query.length);
+    state.currentMatchIndex = matchIndex;
+    state.lastMatchPattern = query;
+    state.searchHighlightVisible = true;
+    jumpToMatch(editor, matchIndex);
+    renderSearchHighlights(editor);
     return true;
   };
 
@@ -154,19 +324,241 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
 
-    const { query, direction } = state.search;
+    const { query, direction, kind } = state.search;
     state.searchInputActive = false;
     ui.showCommandPreview(undefined);
-    await executeNativeSearch(query, direction);
+    const found = await executeNativeSearch(query, direction, kind);
+    if (found) {
+      state.lastSearch = query;
+      state.lastSearchDirection = direction;
+      state.lastSearchPattern = query;
+      state.lastSearchIsRegex = kind === 'regex';
+      setLastCommand(state, {
+        sequence: `${kind === 'regex' ? MIV_KEYS.commands.searchRegex : direction === 'forward' ? MIV_KEYS.commands.searchForward : MIV_KEYS.commands.searchBackward}${query}`,
+        action: kind === 'regex' ? 'regexSearch' : direction === 'forward' ? 'forwardSearch' : 'backwardSearch',
+        args: [query]
+      });
+    }
   };
 
-  const repeatSearch = async (direction: 'forward' | 'backward'): Promise<void> => {
-    const query = state.lastSearch;
-    if (!query) {
+  const jumpToNextMatch = async (): Promise<void> => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || state.lastMatchList.length === 0) {
       return;
     }
 
-    await executeNativeSearch(query, direction);
+    state.currentMatchIndex += 1;
+    if (state.currentMatchIndex >= state.lastMatchList.length) {
+      state.currentMatchIndex = state.lastMatchList.length - 1;
+      ui.showMessage('search reached end');
+      return;
+    }
+
+    jumpToMatch(editor, state.currentMatchIndex);
+    updateCurrentSearchHighlight(editor);
+  };
+
+  const jumpToPreviousMatch = async (): Promise<void> => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || state.lastMatchList.length === 0) {
+      return;
+    }
+
+    state.currentMatchIndex -= 1;
+    if (state.currentMatchIndex < 0) {
+      state.currentMatchIndex = 0;
+      ui.showMessage('search reached start');
+      return;
+    }
+
+    jumpToMatch(editor, state.currentMatchIndex);
+    updateCurrentSearchHighlight(editor);
+  };
+
+  const appendSearchInput = (key: string): void => {
+    state.search = {
+      query: `${state.search?.query ?? ''}${key}`,
+      direction: state.search?.direction ?? 'forward',
+      kind: state.search?.kind ?? 'literal'
+    };
+    updateSearchPreview();
+  };
+
+  const startReplaceRuleInput = (): void => {
+    resetInputState();
+    state.replaceRuleInputActive = true;
+    state.replaceRuleBuffer = MIV_KEYS.commands.replaceMatches;
+    updateReplaceRulePreview();
+  };
+
+  const appendReplaceRuleInput = (key: string): void => {
+    state.replaceRuleBuffer += key;
+    updateReplaceRulePreview();
+  };
+
+  const cancelReplaceRuleInput = (): void => {
+    state.replaceRuleInputActive = false;
+    state.replaceRuleBuffer = '';
+    ui.showCommandPreview(undefined);
+  };
+
+  const commitReplaceRuleInput = async (): Promise<void> => {
+    if (state.replaceRuleBuffer === MIV_KEYS.commands.replaceMatches) {
+      state.replaceRuleInputActive = false;
+      state.replaceRuleBuffer = '';
+      ui.showCommandPreview(undefined);
+      await applyReplaceRule();
+      return;
+    }
+
+    const result = parseInput(state.replaceRuleBuffer);
+    if (result.status !== 'complete' || !result.command || result.command.action !== 'setReplaceRule') {
+      ui.showMessage('invalid replace rule');
+      cancelReplaceRuleInput();
+      return;
+    }
+
+    const replace = String(result.command.args?.[0] ?? '');
+    const explicitSearch = result.command.args?.[1] !== undefined ? String(result.command.args?.[1]) : undefined;
+    const search = explicitSearch ?? state.lastSearchPattern;
+    const isRegex = explicitSearch === undefined ? state.lastSearchIsRegex : false;
+    if (search.length === 0) {
+      ui.showMessage('no previous search');
+      cancelReplaceRuleInput();
+      return;
+    }
+
+    state.replaceRule = { replace, search, isRegex };
+    state.replaceRuleInputActive = false;
+    state.replaceRuleBuffer = '';
+    ui.showCommandPreview(undefined);
+    const replacedCount = await replaceAllWithRule(state.replaceRule);
+    ui.showMessage(`replaced ${replacedCount} matches`);
+    setLastCommand(state, {
+      sequence: MIV_KEYS.commands.replaceMatches,
+      action: 'applyReplaceRule'
+    });
+  };
+
+  const replaceAllWithRule = async (rule: NonNullable<typeof state.replaceRule>): Promise<number> => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      return 0;
+    }
+
+    const document = editor.document;
+    const text = document.getText();
+    const matchData = collectMatchData(text, rule.search, rule.isRegex);
+    if (!matchData) {
+      ui.showMessage(`invalid regex: ${rule.search}`);
+      return 0;
+    }
+
+    const replacedCount = matchData.offsets.length;
+    if (replacedCount === 0) {
+      state.lastMatchList = [];
+      state.lastMatchLengths = [];
+      state.currentMatchIndex = -1;
+      state.lastMatchPattern = rule.search;
+      renderSearchHighlights(editor);
+      return 0;
+    }
+
+    const nextText = rule.isRegex
+      ? text.replace(new RegExp(rule.search, 'g'), rule.replace)
+      : text.split(rule.search).join(rule.replace);
+    const fullRange = new vscode.Range(document.positionAt(0), document.positionAt(text.length));
+    await editor.edit((editBuilder) => {
+      editBuilder.replace(fullRange, nextText);
+    });
+
+    const updatedText = editor.document.getText();
+    const updatedMatchData = collectMatchData(updatedText, rule.search, rule.isRegex);
+    if (!updatedMatchData) {
+      state.lastMatchList = [];
+      state.lastMatchLengths = [];
+      state.currentMatchIndex = -1;
+      state.lastMatchPattern = rule.search;
+      renderSearchHighlights(editor);
+      return replacedCount;
+    }
+
+    state.lastMatchList = updatedMatchData.offsets;
+    state.lastMatchLengths = updatedMatchData.lengths.length > 0
+      ? updatedMatchData.lengths
+      : updatedMatchData.offsets.map(() => rule.search.length);
+    state.currentMatchIndex = updatedMatchData.offsets.length > 0 ? 0 : -1;
+    state.lastMatchPattern = rule.search;
+    renderSearchHighlights(editor);
+    return replacedCount;
+  };
+
+  const applyReplaceRule = async (): Promise<void> => {
+    const editor = vscode.window.activeTextEditor;
+    const rule = state.replaceRule;
+    if (!editor || !rule || state.lastMatchList.length === 0 || state.currentMatchIndex < 0) {
+      return;
+    }
+
+    const currentOffset = state.lastMatchList[state.currentMatchIndex];
+    if (currentOffset === undefined) {
+      return;
+    }
+
+    const start = editor.document.positionAt(currentOffset);
+    const matchLength = state.lastMatchLengths[state.currentMatchIndex] ?? rule.search.length;
+    const end = editor.document.positionAt(currentOffset + matchLength);
+    const range = new vscode.Range(start, end);
+    await editor.edit((editBuilder) => {
+      editBuilder.replace(range, rule.replace);
+    });
+
+    const text = editor.document.getText();
+    const matchData = collectMatchData(text, rule.search, rule.isRegex);
+    if (!matchData) {
+      state.lastMatchList = [];
+      state.lastMatchLengths = [];
+      state.currentMatchIndex = -1;
+      state.lastMatchPattern = rule.search;
+      renderSearchHighlights(editor);
+      return;
+    }
+
+    const matches = matchData.offsets;
+    state.lastMatchList = matches;
+    state.lastMatchLengths = matchData.lengths.length > 0 ? matchData.lengths : matches.map(() => rule.search.length);
+    state.lastMatchPattern = rule.search;
+    state.currentMatchIndex = matches.findIndex((matchOffset) => matchOffset > currentOffset);
+    if (state.currentMatchIndex < 0) {
+      state.currentMatchIndex = matches.length - 1;
+    }
+
+    if (state.currentMatchIndex >= 0 && matches.length > 0) {
+      jumpToMatch(editor, state.currentMatchIndex);
+    }
+    renderSearchHighlights(editor);
+  };
+
+  const canApplyActiveReplaceRule = (): boolean => {
+    return Boolean(
+      state.mode === MIV_MODES.NAV &&
+      !state.searchInputActive &&
+      !state.replaceRuleInputActive &&
+      state.replaceRule &&
+      state.lastMatchList.length > 0 &&
+      state.currentMatchIndex >= 0
+    );
+  };
+
+  const runReplaceChar = async (key: string): Promise<void> => {
+    state.replaceCharPending = false;
+    await runParsedCommand({
+      sequence: `${MIV_KEYS.operators.replace}${key}`,
+      action: 'replaceChar',
+      args: [key]
+    });
+    buffer = '';
+    ui.showCommandPreview(undefined);
   };
 
   const syncClipboardMirror = async (): Promise<void> => {
@@ -234,7 +626,59 @@ export function activate(context: vscode.ExtensionContext): void {
     lastClipboard = await vscode.env.clipboard.readText();
   })();
 
+  const runExtensionCommand = async (parsed: ParsedCommand): Promise<boolean> => {
+    if (parsed.action === 'forwardSearch' || parsed.action === 'backwardSearch' || parsed.action === 'regexSearch') {
+      const query = String(parsed.args?.[0] ?? '');
+      if (query.length === 0) {
+        return true;
+      }
+
+      const direction = parsed.action === 'backwardSearch' ? 'backward' : 'forward';
+      const kind = parsed.action === 'regexSearch' ? 'regex' : 'literal';
+      const found = await executeNativeSearch(query, direction, kind);
+      if (found) {
+        state.lastSearch = query;
+        state.lastSearchDirection = direction;
+        state.lastSearchPattern = query;
+        state.lastSearchIsRegex = kind === 'regex';
+      }
+      return true;
+    }
+
+    if (parsed.action === 'applyReplaceRule') {
+      await applyReplaceRule();
+      return true;
+    }
+
+    return false;
+  };
+
+  const shouldStoreExtensionRepeat = (parsed: ParsedCommand): boolean => {
+    return (
+      parsed.action === 'forwardSearch' ||
+      parsed.action === 'backwardSearch' ||
+      parsed.action === 'regexSearch' ||
+      parsed.action === 'applyReplaceRule'
+    );
+  };
+
   const runParsedCommand = async (parsed: ParsedCommand): Promise<void> => {
+    if (parsed.action === 'repeatLastCommand') {
+      if (!state.lastCommand || state.lastCommand.action === 'repeatLastCommand') {
+        return;
+      }
+
+      await runParsedCommand(state.lastCommand);
+      return;
+    }
+
+    if (await runExtensionCommand(parsed)) {
+      if (shouldStoreExtensionRepeat(parsed)) {
+        setLastCommand(state, parsed);
+      }
+      return;
+    }
+
     await dispatchCommand(parsed, state, {
       onModeChanged: syncModeFeedback,
       onStatusMessage: ui.showMessage,
@@ -265,21 +709,56 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
+      if (state.replaceRuleInputActive) {
+        if (key === MIV_KEYS.mode.enter || key === MIV_KEYS.mode.carriageReturn) {
+          await commitReplaceRuleInput();
+          return;
+        }
+
+        appendReplaceRuleInput(key);
+        return;
+      }
+
       if (state.searchInputActive) {
         if (key === MIV_KEYS.mode.enter || key === MIV_KEYS.mode.carriageReturn) {
           await commitSearchInput();
           return;
         }
 
-        state.search = {
-          query: `${state.search?.query ?? ''}${key}`,
-          direction: state.search?.direction ?? 'forward'
-        };
-        updateSearchPreview();
+        appendSearchInput(key);
+        return;
+      }
+
+      if (state.replaceCharPending) {
+        await runReplaceChar(key);
+        return;
+      }
+
+      if (state.mode === MIV_MODES.NAV && key === MIV_KEYS.commands.searchForward) {
+        startSearchInput('forward');
+        return;
+      }
+
+      if (state.mode === MIV_MODES.NAV && key === MIV_KEYS.commands.searchBackward) {
+        startSearchInput('backward');
+        return;
+      }
+
+      if (state.mode === MIV_MODES.NAV && key === MIV_KEYS.commands.searchRegex) {
+        startSearchInput('forward', 'regex');
         return;
       }
 
       if (key === MIV_KEYS.mode.enter || key === MIV_KEYS.mode.carriageReturn) {
+        if (canApplyActiveReplaceRule()) {
+          await applyReplaceRule();
+          setLastCommand(state, {
+            sequence: MIV_KEYS.commands.replaceMatches,
+            action: 'applyReplaceRule'
+          });
+          return;
+        }
+
         await vscode.commands.executeCommand('default:type', args);
         return;
       }
@@ -317,6 +796,21 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       if (state.searchInputActive) {
+        if ((state.search?.query ?? '').length === 0 && isSearchInputPrefixKey(key)) {
+          return;
+        }
+
+        appendSearchInput(key);
+        return;
+      }
+
+      if (state.replaceRuleInputActive) {
+        appendReplaceRuleInput(key);
+        return;
+      }
+
+      if (state.replaceCharPending) {
+        await runReplaceChar(key);
         return;
       }
 
@@ -331,6 +825,26 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
+      if (sequenceKey === MIV_KEYS.commands.searchForward && buffer.length === 0) {
+        startSearchInput('forward');
+        return;
+      }
+
+      if (sequenceKey === MIV_KEYS.commands.searchBackward && buffer.length === 0) {
+        startSearchInput('backward');
+        return;
+      }
+
+      if (sequenceKey === MIV_KEYS.commands.searchRegex && buffer.length === 0) {
+        startSearchInput('forward', 'regex');
+        return;
+      }
+
+      if (sequenceKey === MIV_KEYS.commands.replaceMatches && buffer.length === 0) {
+        startReplaceRuleInput();
+        return;
+      }
+
       buffer += sequenceKey;
       ui.showCommandPreview(getPreviewText(buffer));
 
@@ -338,11 +852,26 @@ export function activate(context: vscode.ExtensionContext): void {
 
       if (result.status === 'partial') {
         if (!result.fallbackCommand) {
+          if (buffer === MIV_KEYS.operators.replace) {
+            state.replaceCharPending = true;
+          }
           return;
         }
 
+        if (buffer === MIV_KEYS.commands.replaceMatches) {
+          state.replaceRuleInputActive = true;
+          state.replaceRuleBuffer = buffer;
+          updateReplaceRulePreview();
+        }
+
         fallbackTimer = setTimeout(async () => {
-          await runParsedCommand(result.fallbackCommand as ParsedCommand);
+          if (result.fallbackCommand?.action === 'applyReplaceRule') {
+            state.replaceRuleInputActive = false;
+            state.replaceRuleBuffer = '';
+            await applyReplaceRule();
+          } else {
+            await runParsedCommand(result.fallbackCommand as ParsedCommand);
+          }
           buffer = '';
           ui.showCommandPreview(undefined);
           fallbackTimer = undefined;
@@ -366,16 +895,51 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
+      if (result.command.action === 'regexSearch') {
+        startSearchInput('forward', 'regex');
+        return;
+      }
+
       if (result.command.action === 'searchNext') {
-        await repeatSearch(state.lastSearchDirection ?? 'forward');
+        await jumpToNextMatch();
         buffer = '';
         ui.showCommandPreview(undefined);
         return;
       }
 
       if (result.command.action === 'searchPrevious') {
-        const direction = state.lastSearchDirection === 'backward' ? 'forward' : 'backward';
-        await repeatSearch(direction);
+        await jumpToPreviousMatch();
+        buffer = '';
+        ui.showCommandPreview(undefined);
+        return;
+      }
+
+      if (result.command.action === 'setReplaceRule') {
+        const replace = String(result.command.args?.[0] ?? '');
+        const explicitSearch = result.command.args?.[1] !== undefined ? String(result.command.args?.[1]) : undefined;
+        const search = explicitSearch ?? state.lastSearchPattern;
+        const isRegex = explicitSearch === undefined ? state.lastSearchIsRegex : false;
+        if (search.length === 0) {
+          ui.showMessage('no previous search');
+          buffer = '';
+          ui.showCommandPreview(undefined);
+          return;
+        }
+
+        state.replaceRule = { replace, search, isRegex };
+        const replacedCount = await replaceAllWithRule(state.replaceRule);
+        ui.showMessage(`replaced ${replacedCount} matches`);
+        setLastCommand(state, {
+          sequence: MIV_KEYS.commands.replaceMatches,
+          action: 'applyReplaceRule'
+        });
+        buffer = '';
+        ui.showCommandPreview(undefined);
+        return;
+      }
+
+      if (result.command.action === 'applyReplaceRule') {
+        await applyReplaceRule();
         buffer = '';
         ui.showCommandPreview(undefined);
         return;
@@ -390,15 +954,52 @@ export function activate(context: vscode.ExtensionContext): void {
         await setInsert();
       }
     }),
+    vscode.commands.registerCommand('miv.toggleSearchHighlight', async () => {
+      state.searchHighlightEnabled = !state.searchHighlightEnabled;
+      if (!state.searchHighlightEnabled) {
+        state.searchHighlightVisible = false;
+        clearSearchHighlights();
+        ui.showMessage('search highlight disabled');
+        return;
+      }
+
+      state.searchHighlightVisible = true;
+      renderSearchHighlights();
+      ui.showMessage('search highlight enabled');
+    }),
     vscode.commands.registerCommand('miv.toNavMode', async () => {
       if (state.searchInputActive) {
+        state.searchHighlightVisible = false;
+        clearSearchHighlights();
         cancelSearchInput();
         return;
       }
 
+      if (state.replaceRuleInputActive) {
+        cancelReplaceRuleInput();
+        return;
+      }
+
+      if (state.replaceCharPending) {
+        state.replaceCharPending = false;
+        resetInputState();
+        return;
+      }
+
+      state.searchHighlightVisible = false;
+      clearSearchHighlights();
       await setNav();
     }),
     vscode.commands.registerCommand('miv.searchBackspace', async () => {
+      if (state.replaceRuleInputActive) {
+        state.replaceRuleBuffer = state.replaceRuleBuffer.slice(0, -1);
+        if (state.replaceRuleBuffer.length === 0) {
+          state.replaceRuleBuffer = MIV_KEYS.commands.replaceMatches;
+        }
+        updateReplaceRulePreview();
+        return;
+      }
+
       if (!state.searchInputActive || !state.search) {
         return;
       }
@@ -538,6 +1139,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(...ui.disposables);
   context.subscriptions.push(statsOutput);
+  context.subscriptions.push(searchDecoration);
+  context.subscriptions.push(searchCurrentDecoration);
   context.subscriptions.push(...subscriptions);
 }
 

@@ -18,6 +18,13 @@ export interface AnchorPosition {
 export interface SearchState {
   query: string;
   direction: 'forward' | 'backward';
+  kind: 'literal' | 'regex';
+}
+
+export interface ReplaceRule {
+  search: string;
+  replace: string;
+  isRegex: boolean;
 }
 
 export interface MivState {
@@ -26,10 +33,22 @@ export interface MivState {
   anchorPosition?: AnchorPosition;
   registers: Record<string, RegisterValue>;
   registerViewerActive: boolean;
+  replaceCharPending: boolean;
+  replaceRule?: ReplaceRule;
+  replaceRuleInputActive: boolean;
+  replaceRuleBuffer: string;
   search?: SearchState;
   searchInputActive: boolean;
+  searchHighlightEnabled: boolean;
+  searchHighlightVisible: boolean;
   lastSearch?: string;
   lastSearchDirection?: 'forward' | 'backward';
+  lastSearchPattern: string;
+  lastSearchIsRegex: boolean;
+  lastMatchList: number[];
+  lastMatchLengths: number[];
+  currentMatchIndex: number;
+  lastMatchPattern: string;
 }
 
 export type RegisterType = 'charwise' | 'linewise';
@@ -52,10 +71,22 @@ export function createInitialState(): MivState {
     lastCommand: undefined,
     anchorPosition: undefined,
     registerViewerActive: false,
+    replaceCharPending: false,
+    replaceRule: undefined,
+    replaceRuleInputActive: false,
+    replaceRuleBuffer: '',
     search: undefined,
     searchInputActive: false,
+    searchHighlightEnabled: true,
+    searchHighlightVisible: true,
     lastSearch: undefined,
     lastSearchDirection: undefined,
+    lastSearchPattern: '',
+    lastSearchIsRegex: false,
+    lastMatchList: [],
+    lastMatchLengths: [],
+    currentMatchIndex: -1,
+    lastMatchPattern: '',
     registers: {
       '0': emptyRegister(),
       '1': emptyRegister(),

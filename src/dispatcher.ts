@@ -22,6 +22,8 @@ const REPEATABLE_EDIT_ACTIONS = new Set<ParsedAction>([
   'deleteLine',
   'yankWord',
   'replaceWord',
+  'toggleCaseChar',
+  'toggleCaseWord',
   'replaceChar',
   'openLineBelow',
   'openLineAbove',
@@ -91,6 +93,12 @@ const EDIT_ACTION_HANDLERS: ActionHandlerMap = {
   },
   replaceWord: async ({ state, hooks }) => {
     await executeReplaceWord(state, hooks);
+  },
+  toggleCaseChar: async () => {
+    await executeToggleCaseChar();
+  },
+  toggleCaseWord: async () => {
+    await executeToggleCaseWord();
   },
   replaceChar: async ({ command }) => {
     await executeReplaceChar(command);
@@ -629,22 +637,7 @@ async function executeReplaceWord(state: MivState, hooks?: DispatchHooks): Promi
   }
 
   const position = editor.selection.active;
-  const line = editor.document.lineAt(position.line).text;
-  let start = position.character;
-  let end = position.character;
-
-  while (start < line.length && isReplaceWordDelimiter(line[start])) {
-    start += 1;
-  }
-  end = start;
-
-  while (start > 0 && !isReplaceWordDelimiter(line[start - 1])) {
-    start -= 1;
-  }
-
-  while (end < line.length && !isReplaceWordDelimiter(line[end])) {
-    end += 1;
-  }
+  const { start, end } = findWordBounds(editor.document.lineAt(position.line).text, position.character);
 
   const startPosition = new vscode.Position(position.line, start);
   if (start === end) {
@@ -663,6 +656,89 @@ async function executeReplaceWord(state: MivState, hooks?: DispatchHooks): Promi
   editor.selection = new vscode.Selection(startPosition, startPosition);
   setInsertMode(state);
   await hooks?.onModeChanged?.(state.mode);
+}
+
+async function executeToggleCaseChar(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    return;
+  }
+
+  const position = editor.selection.active;
+  const line = editor.document.lineAt(position.line).text;
+  if (position.character >= line.length) {
+    return;
+  }
+
+  const original = line[position.character];
+  const toggled = toggleCharacterCase(original);
+  if (toggled === original) {
+    return;
+  }
+
+  const range = new vscode.Range(position, position.translate(0, 1));
+  await editor.edit((editBuilder) => {
+    editBuilder.replace(range, toggled);
+  });
+  editor.selection = new vscode.Selection(position, position);
+}
+
+async function executeToggleCaseWord(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    return;
+  }
+
+  const position = editor.selection.active;
+  const line = editor.document.lineAt(position.line).text;
+  const { start, end } = findWordBounds(line, position.character);
+  if (start === end) {
+    return;
+  }
+
+  const startPosition = new vscode.Position(position.line, start);
+  const endPosition = new vscode.Position(position.line, end);
+  const range = new vscode.Range(startPosition, endPosition);
+  const original = editor.document.getText(range);
+  const toggled = [...original].map(toggleCharacterCase).join('');
+  if (toggled === original) {
+    return;
+  }
+
+  await editor.edit((editBuilder) => {
+    editBuilder.replace(range, toggled);
+  });
+  editor.selection = new vscode.Selection(position, position);
+}
+
+function findWordBounds(line: string, character: number): { start: number; end: number } {
+  let start = character;
+  let end = character;
+
+  while (start < line.length && isReplaceWordDelimiter(line[start])) {
+    start += 1;
+  }
+  end = start;
+
+  while (start > 0 && !isReplaceWordDelimiter(line[start - 1])) {
+    start -= 1;
+  }
+
+  while (end < line.length && !isReplaceWordDelimiter(line[end])) {
+    end += 1;
+  }
+
+  return { start, end };
+}
+
+function toggleCharacterCase(char: string): string {
+  const lower = char.toLowerCase();
+  const upper = char.toUpperCase();
+  if (lower === upper) {
+    return char;
+  }
+
+  return char === lower ? upper : lower;
 }
 
 function isReplaceWordDelimiter(char: string): boolean {
