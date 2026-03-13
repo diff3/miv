@@ -1150,6 +1150,17 @@ export function activate(context: vscode.ExtensionContext): void {
         showMessage: ui.showMessage
       });
     }),
+    vscode.commands.registerCommand('miv.openKeymap', async () => {
+      const extensionUri = vscode.extensions.getExtension('diff3.miv')?.extensionUri ?? context.extensionUri;
+      const uri = vscode.Uri.joinPath(extensionUri, 'doc', 'KEYMAP.md');
+      const document = await vscode.workspace.openTextDocument(uri);
+      const editor = await vscode.window.showTextDocument(document);
+
+      await vscode.commands.executeCommand('markdown.showPreviewToSide', editor.document.uri);
+    }),
+    vscode.commands.registerCommand('miv.openKeybindings', async () => {
+      await vscode.commands.executeCommand('workbench.action.openGlobalKeybindings', 'miv');
+    }),
     vscode.commands.registerCommand('miv.openMenu', async () => {
       clearFallbackTimer();
       buffer = '';
@@ -1159,14 +1170,8 @@ export function activate(context: vscode.ExtensionContext): void {
         { label: '$(graph) Command Stats', action: async () => vscode.commands.executeCommand('miv.showCommandStats') },
         { label: '$(files) Registers', action: async () => vscode.commands.executeCommand('miv.showRegisters') },
         { label: '$(search) Toggle Search Highlight', action: async () => vscode.commands.executeCommand('miv.toggleSearchHighlight') },
-        { label: '$(keyboard) Change Keybindings', action: async () => vscode.commands.executeCommand('workbench.action.openGlobalKeybindings') },
-        {
-          label: '$(book) Open KEYMAP',
-          action: async () => {
-            const document = await vscode.workspace.openTextDocument(vscode.Uri.joinPath(context.extensionUri, 'doc', 'KEYMAP.md'));
-            await vscode.window.showTextDocument(document, { preview: false });
-          }
-        }
+        { label: '$(keyboard) Change Keybindings', action: async () => vscode.commands.executeCommand('miv.openKeybindings') },
+        { label: '$(book) Open KEYMAP', action: async () => vscode.commands.executeCommand('miv.openKeymap') }
       ];
 
       const choice = await vscode.window.showQuickPick(items, {
