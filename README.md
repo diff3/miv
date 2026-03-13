@@ -22,12 +22,13 @@ Navigation:
 Insert mode:
 
 - `i` insert
+- `Space` insert
 - `ESC` return to NAV mode
 
 Search:
 
 - `/text` search forward
-- `\\text` search backward
+- `\text` search backward
 
 ## Full Keymap
 

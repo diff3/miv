@@ -61,7 +61,7 @@ This document contains the full MIV command list and the behavior of each comman
 ## Search
 
 - `/text` searches forward for a literal string.
-- `\\text` searches backward for a literal string.
+- `\text` searches backward for a literal string.
 - `,pattern` starts a regex search.
 - Regex search prompts are shown with the `~` prefix.
 - `n` jumps to the next match.
@@ -70,9 +70,9 @@ This document contains the full MIV command list and the behavior of each comman
 
 Regex search uses standard JavaScript regular expressions. Example patterns:
 
-- `code\\b`
-- `\\bcode\\b`
-- `\\d+`
+- `code\b`
+- `\bcode\b`
+- `\d+`
 
 ## Replace
 
@@ -85,7 +85,7 @@ Regex search uses standard JavaScript regular expressions. Example patterns:
 Examples:
 
 - `/foo` then `=bar`
-- `,\\d+` then `=NUMBER`
+- `,\d+` then `=NUMBER`
 - `=bar foo`
 
 ## Registers
