@@ -30,6 +30,11 @@ Search:
 - `/text` search forward
 - `\text` search backward
 
+Registers:
+
+- `2p` paste from register `2`
+- `v` show register contents
+
 ## Full Keymap
 
 For the complete command reference see:

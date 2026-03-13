@@ -92,10 +92,23 @@ Examples:
 
 - Registers are numbered `0..9`.
 - Register `9` mirrors the system clipboard.
-- `1p..9p` pastes from a specific register.
-- `[count] [register]y` yanks lines into a register, for example `10 3y`.
-- `[count] [register]x` deletes characters into a register, for example `5 2x`.
-- `v` opens the register viewer.
+- `p` pastes from the default register after the cursor.
+- `P` pastes from the default register before the cursor.
+- `1p..9p` pastes from a specific register after the cursor, for example `3p`.
+- `1P..9P` pastes from a specific register before the cursor, for example `3P`.
+- `[count] [register]y` yanks lines into a register.
+- `[count] [register]x` deletes characters into a register.
+- `v` opens the register viewer so you can inspect the current contents of all registers.
+
+Command format:
+
+- The first number is the count.
+- The second number is the target register.
+- The final letter is the action.
+- `10 2y` means yank 10 lines into register `2`.
+- `5 3x` means delete 5 characters into register `3`.
+- `2p` means paste from register `2`.
+- `2P` means paste before the cursor from register `2`.
 
 Registers store:
 
