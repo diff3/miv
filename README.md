@@ -16,28 +16,39 @@ It focuses on:
 ## Quick Start
 Press `ESC` to enter **NAV mode**.
 
-Basic navigation:
+Basic navigation: `a` left, `d` right, `w` up, `s` down.
 
-- `a` left
-- `d` right
-- `w` up
-- `s` down
+Insert mode: `i` insert, `Space` insert, `ESC` return to NAV mode.
 
-Insert mode:
+Search: `/text` search forward, `\text` search backward.
 
-- `i` insert
-- `Space` insert
-- `ESC` return to NAV mode
+Registers: `2p` paste from register `2`, `v` show register contents.
 
-Search:
+## Keyboard Layout
+The default MIV keymap is optimized for a **Swedish keyboard layout**.
 
-- `/text` search forward
-- `\text` search backward
+Many commands are positioned to be easy to reach on that layout.
+If you use another keyboard layout you may want to adjust the keybindings.
 
-Registers:
+## Customizing Keybindings
+VS Code makes it easy to customize shortcuts.
 
-- `2p` paste from register `2`
-- `v` show register contents
+Open `File -> Preferences -> Keyboard Shortcuts` or press `Ctrl+K Ctrl+S`.
+Search for `miv` and change any keybinding to your preferred layout.
+You can also edit the keybindings file directly in `Preferences -> Open Keyboard Shortcuts (JSON)`.
+
+Example:
+
+```json
+{
+  "key": "h",
+  "command": "miv.handleKey",
+  "args": "a",
+  "when": "editorTextFocus && miv.mode == 'NAV'"
+}
+```
+
+This maps the Vim-style `h` key to MIV's left movement command.
 
 ## Command Reference
 The full command reference is available in [`doc/KEYMAP.md`](doc/KEYMAP.md).
