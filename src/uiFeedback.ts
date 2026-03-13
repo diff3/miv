@@ -44,6 +44,8 @@ export function createUiFeedback(options: {
     const base = `MIV ${mode}`;
     const suffix = messageText ?? previewText;
     modeStatusBar.text = suffix ? `${base} | ${suffix}` : base;
+    modeStatusBar.command = 'miv.openMenu';
+    modeStatusBar.tooltip = 'Open MIV menu';
     modeStatusBar.backgroundColor = mode === MIV_MODES.NAV
       ? new vscode.ThemeColor('statusBarItem.warningBackground')
       : new vscode.ThemeColor('statusBarItem.remoteBackground');

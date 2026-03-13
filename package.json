@@ -2,7 +2,7 @@
   "name": "miv",
   "displayName": "MIV",
   "description": "Lightweight modal editing for VS Code inspired by Vim and designed for IDE workflows.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -211,6 +211,10 @@
       {
         "command": "miv.showRegisters",
         "title": "MIV: Show Registers"
+      },
+      {
+        "command": "miv.openMenu",
+        "title": "MIV: Open Menu"
       },
       {
         "command": "miv.setAnchor",

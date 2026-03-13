@@ -41,8 +41,11 @@
 - [ ] `P` paste before
 - [ ] `r<char>` replace one char
 - [ ] `R` replace word and enter `INSERT`
+- [ ] `3R` replace counted words and enter `INSERT`
 - [ ] `§` toggle case at cursor
+- [ ] `5§` toggle case for counted chars
 - [ ] `shift+§` toggle case for current word
+- [ ] `3shift+§` toggle case for counted words
 - [ ] `-` change to line end
 - [ ] `_` change line
 - [ ] `%` jump bracket match

@@ -76,11 +76,8 @@ const INSERT_ACTION_HANDLERS: ActionHandlerMap = {
 };
 
 const EDIT_ACTION_HANDLERS: ActionHandlerMap = {
-  deleteLine: async ({ command }) => {
-    const count = normalizePositiveInt(command.args?.[0], 1);
-    for (let i = 0; i < count; i += 1) {
-      await vscode.commands.executeCommand('editor.action.deleteLines');
-    }
+  deleteLine: async ({ command, state, hooks }) => {
+    await executeDeleteLine(command, state, hooks);
   },
   deleteCharRight: async ({ command, state, hooks }) => {
     await executeDeleteCharRight(command, state, hooks);
@@ -91,14 +88,14 @@ const EDIT_ACTION_HANDLERS: ActionHandlerMap = {
   deleteToLineEnd: async ({ command, state, hooks }) => {
     await executeDeleteToLineEnd(command, state, hooks);
   },
-  replaceWord: async ({ state, hooks }) => {
-    await executeReplaceWord(state, hooks);
+  replaceWord: async ({ command, state, hooks }) => {
+    await executeReplaceWord(command, state, hooks);
   },
-  toggleCaseChar: async () => {
-    await executeToggleCaseChar();
+  toggleCaseChar: async ({ command, hooks }) => {
+    await executeToggleCaseChar(command, hooks);
   },
-  toggleCaseWord: async () => {
-    await executeToggleCaseWord();
+  toggleCaseWord: async ({ command, hooks }) => {
+    await executeToggleCaseWord(command, hooks);
   },
   replaceChar: async ({ command }) => {
     await executeReplaceChar(command);
@@ -501,7 +498,7 @@ async function executeDeleteCharRight(command: ParsedCommand, state: MivState, h
   }
 
   const count = normalizePositiveInt(command.args?.[0], 1);
-  const targetRegister = command.args?.[1] !== undefined ? String(command.args?.[1]) : undefined;
+  const targetRegister = String(command.args?.[1] ?? '8');
   if (!commandHasExplicitCount(command) && !editor.selection.isEmpty) {
     const range = new vscode.Range(editor.selection.start, editor.selection.end);
     const deletedText = editor.document.getText(range);
@@ -510,17 +507,8 @@ async function executeDeleteCharRight(command: ParsedCommand, state: MivState, h
     });
     const caret = range.start;
     editor.selection = new vscode.Selection(caret, caret);
-    if (targetRegister) {
-      storeRegister(state, targetRegister, deletedText, 'charwise');
-      hooks?.onStatusMessage?.(`stored delete in register ${targetRegister}`);
-    }
-    return;
-  }
-
-  if (!targetRegister) {
-    for (let i = 0; i < count; i += 1) {
-      await vscode.commands.executeCommand('deleteRight');
-    }
+    storeRegister(state, targetRegister, deletedText, 'charwise');
+    hooks?.onStatusMessage?.(`stored delete in register ${targetRegister}`);
     return;
   }
 
@@ -535,21 +523,17 @@ async function executeDeleteCharRight(command: ParsedCommand, state: MivState, h
 
   const range = new vscode.Range(start, end);
   const deletedText = document.getText(range);
-  editor.selection = new vscode.Selection(start, end);
-  await vscode.commands.executeCommand('editor.action.clipboardCutAction');
+  await editor.edit((editBuilder) => {
+    editBuilder.delete(range);
+  });
+  editor.selection = new vscode.Selection(start, start);
   storeRegister(state, targetRegister, deletedText, 'charwise');
   hooks?.onStatusMessage?.(`stored delete in register ${targetRegister}`);
 }
 
 async function executeDeleteWordRight(command: ParsedCommand, state: MivState, hooks?: DispatchHooks): Promise<void> {
   const count = normalizePositiveInt(command.args?.[0], 1);
-  const targetRegister = command.args?.[1] !== undefined ? String(command.args?.[1]) : undefined;
-  if (!targetRegister) {
-    for (let i = 0; i < count; i += 1) {
-      await vscode.commands.executeCommand('deleteWordRight');
-    }
-    return;
-  }
+  const targetRegister = String(command.args?.[1] ?? '8');
 
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
@@ -569,20 +553,17 @@ async function executeDeleteWordRight(command: ParsedCommand, state: MivState, h
 
   const range = new vscode.Range(selection.start, selection.end);
   const deletedText = editor.document.getText(range);
-  await vscode.commands.executeCommand('editor.action.clipboardCutAction');
+  await editor.edit((editBuilder) => {
+    editBuilder.delete(range);
+  });
+  editor.selection = new vscode.Selection(start, start);
   storeRegister(state, targetRegister, deletedText, 'charwise');
   hooks?.onStatusMessage?.(`stored delete in register ${targetRegister}`);
 }
 
 async function executeDeleteToLineEnd(command: ParsedCommand, state: MivState, hooks?: DispatchHooks): Promise<void> {
   const count = normalizePositiveInt(command.args?.[0], 1);
-  const targetRegister = command.args?.[1] !== undefined ? String(command.args?.[1]) : undefined;
-  if (!targetRegister) {
-    for (let i = 0; i < count; i += 1) {
-      await vscode.commands.executeCommand('deleteAllRight');
-    }
-    return;
-  }
+  const targetRegister = String(command.args?.[1] ?? '8');
 
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
@@ -601,8 +582,37 @@ async function executeDeleteToLineEnd(command: ParsedCommand, state: MivState, h
   await editor.edit((editBuilder) => {
     editBuilder.delete(range);
   });
+  editor.selection = new vscode.Selection(start, start);
   storeRegister(state, targetRegister, deletedText, 'charwise');
   hooks?.onStatusMessage?.(`stored delete in register ${targetRegister}`);
+}
+
+async function executeDeleteLine(command: ParsedCommand, state: MivState, hooks?: DispatchHooks): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    return;
+  }
+
+  const count = normalizePositiveInt(command.args?.[0], 1);
+  const document = editor.document;
+  const startLine = editor.selection.active.line;
+  const endLine = Math.min(document.lineCount - 1, startLine + count - 1);
+  const range = new vscode.Range(
+    document.lineAt(startLine).range.start,
+    document.lineAt(endLine).rangeIncludingLineBreak.end
+  );
+  const deletedText = document.getText(range);
+  if (deletedText.length === 0) {
+    return;
+  }
+
+  await editor.edit((editBuilder) => {
+    editBuilder.delete(range);
+  });
+  const caret = new vscode.Position(startLine, 0);
+  editor.selection = new vscode.Selection(caret, caret);
+  storeRegister(state, '8', deletedText, 'linewise');
+  hooks?.onStatusMessage?.('stored delete in register 8');
 }
 
 async function executeReplaceChar(command: ParsedCommand): Promise<void> {
@@ -630,76 +640,52 @@ async function executeReplaceChar(command: ParsedCommand): Promise<void> {
   editor.selection = new vscode.Selection(position, position);
 }
 
-async function executeReplaceWord(state: MivState, hooks?: DispatchHooks): Promise<void> {
+async function executeReplaceWord(command: ParsedCommand, state: MivState, hooks?: DispatchHooks): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
     return;
   }
 
-  const position = editor.selection.active;
-  const { start, end } = findWordBounds(editor.document.lineAt(position.line).text, position.character);
+  const count = normalizePositiveInt(command.args?.[0], 1);
+  const range = await getWordOperationRange(editor, count);
+  if (!range) {
+    return;
+  }
 
-  const startPosition = new vscode.Position(position.line, start);
-  if (start === end) {
-    editor.selection = new vscode.Selection(startPosition, startPosition);
+  if (range.isEmpty) {
+    editor.selection = new vscode.Selection(range.start, range.start);
     setInsertMode(state);
     await hooks?.onModeChanged?.(state.mode);
     return;
   }
 
-  const endPosition = new vscode.Position(position.line, end);
-  const range = new vscode.Range(startPosition, endPosition);
   await editor.edit((editBuilder) => {
     editBuilder.delete(range);
   });
 
-  editor.selection = new vscode.Selection(startPosition, startPosition);
+  editor.selection = new vscode.Selection(range.start, range.start);
   setInsertMode(state);
+  hooks?.onStatusMessage?.(`changed ${count} word${count === 1 ? '' : 's'}`);
   await hooks?.onModeChanged?.(state.mode);
 }
 
-async function executeToggleCaseChar(): Promise<void> {
+async function executeToggleCaseChar(command: ParsedCommand, hooks?: DispatchHooks): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
     return;
   }
 
+  const count = normalizePositiveInt(command.args?.[0], 1);
   const position = editor.selection.active;
-  const line = editor.document.lineAt(position.line).text;
-  if (position.character >= line.length) {
+  const document = editor.document;
+  const startOffset = document.offsetAt(position);
+  const endOffset = Math.min(document.getText().length, startOffset + count);
+  if (startOffset >= endOffset) {
     return;
   }
 
-  const original = line[position.character];
-  const toggled = toggleCharacterCase(original);
-  if (toggled === original) {
-    return;
-  }
-
-  const range = new vscode.Range(position, position.translate(0, 1));
-  await editor.edit((editBuilder) => {
-    editBuilder.replace(range, toggled);
-  });
-  editor.selection = new vscode.Selection(position, position);
-}
-
-async function executeToggleCaseWord(): Promise<void> {
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) {
-    return;
-  }
-
-  const position = editor.selection.active;
-  const line = editor.document.lineAt(position.line).text;
-  const { start, end } = findWordBounds(line, position.character);
-  if (start === end) {
-    return;
-  }
-
-  const startPosition = new vscode.Position(position.line, start);
-  const endPosition = new vscode.Position(position.line, end);
-  const range = new vscode.Range(startPosition, endPosition);
-  const original = editor.document.getText(range);
+  const range = new vscode.Range(position, document.positionAt(endOffset));
+  const original = document.getText(range);
   const toggled = [...original].map(toggleCharacterCase).join('');
   if (toggled === original) {
     return;
@@ -709,26 +695,34 @@ async function executeToggleCaseWord(): Promise<void> {
     editBuilder.replace(range, toggled);
   });
   editor.selection = new vscode.Selection(position, position);
+  hooks?.onStatusMessage?.(`toggled ${count} character${count === 1 ? '' : 's'}`);
 }
 
-function findWordBounds(line: string, character: number): { start: number; end: number } {
-  let start = character;
-  let end = character;
-
-  while (start < line.length && isReplaceWordDelimiter(line[start])) {
-    start += 1;
-  }
-  end = start;
-
-  while (start > 0 && !isReplaceWordDelimiter(line[start - 1])) {
-    start -= 1;
+async function executeToggleCaseWord(command: ParsedCommand, hooks?: DispatchHooks): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    return;
   }
 
-  while (end < line.length && !isReplaceWordDelimiter(line[end])) {
-    end += 1;
+  const count = normalizePositiveInt(command.args?.[0], 1);
+  const originalSelection = editor.selection;
+  const range = await getWordOperationRange(editor, count);
+  editor.selection = originalSelection;
+  if (!range || range.isEmpty) {
+    return;
   }
 
-  return { start, end };
+  const original = editor.document.getText(range);
+  const toggled = [...original].map(toggleCharacterCase).join('');
+  if (toggled === original) {
+    return;
+  }
+
+  await editor.edit((editBuilder) => {
+    editBuilder.replace(range, toggled);
+  });
+  editor.selection = originalSelection;
+  hooks?.onStatusMessage?.(`toggled ${count} word${count === 1 ? '' : 's'}`);
 }
 
 function toggleCharacterCase(char: string): string {
@@ -741,8 +735,37 @@ function toggleCharacterCase(char: string): string {
   return char === lower ? upper : lower;
 }
 
-function isReplaceWordDelimiter(char: string): boolean {
-  return /[\s,.;:()[\]{}]/.test(char);
+async function getWordOperationRange(editor: vscode.TextEditor, count: number): Promise<vscode.Range | undefined> {
+  const document = editor.document;
+  const originalSelection = editor.selection;
+  const originalPosition = originalSelection.active;
+  const currentWordRange = document.getWordRangeAtPosition(originalPosition);
+
+  if (currentWordRange) {
+    editor.selection = new vscode.Selection(currentWordRange.start, currentWordRange.start);
+  } else {
+    editor.selection = new vscode.Selection(originalPosition, originalPosition);
+    await vscode.commands.executeCommand('cursorWordStartRight');
+    if (editor.selection.active.isEqual(originalPosition)) {
+      editor.selection = originalSelection;
+      return undefined;
+    }
+  }
+
+  const start = editor.selection.active;
+  for (let i = 0; i < count; i += 1) {
+    await vscode.commands.executeCommand('cursorWordEndRightSelect');
+  }
+
+  const selection = editor.selection;
+  if (selection.isEmpty) {
+    editor.selection = originalSelection;
+    return undefined;
+  }
+
+  const range = new vscode.Range(selection.start, selection.end);
+  editor.selection = originalSelection;
+  return range;
 }
 
 async function executeChangeToLineEnd(state: MivState, hooks?: DispatchHooks): Promise<void> {

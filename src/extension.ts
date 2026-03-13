@@ -628,7 +628,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const shouldSyncClipboardAfterParsedCommand = (parsed: ParsedCommand): boolean => {
     // Reads clipboard only after commands that are expected to touch it.
-    if (parsed.action === 'yankLines' || parsed.action === 'paste') {
+    if (parsed.action === 'yankLines' || parsed.action === 'yankWord' || parsed.action === 'paste') {
       return true;
     }
 
@@ -1149,6 +1149,34 @@ export function activate(context: vscode.ExtensionContext): void {
         runParsedCommand,
         showMessage: ui.showMessage
       });
+    }),
+    vscode.commands.registerCommand('miv.openMenu', async () => {
+      clearFallbackTimer();
+      buffer = '';
+      ui.showCommandPreview(undefined);
+
+      const items = [
+        { label: '$(graph) Command Stats', action: async () => vscode.commands.executeCommand('miv.showCommandStats') },
+        { label: '$(files) Registers', action: async () => vscode.commands.executeCommand('miv.showRegisters') },
+        { label: '$(search) Toggle Search Highlight', action: async () => vscode.commands.executeCommand('miv.toggleSearchHighlight') },
+        { label: '$(keyboard) Change Keybindings', action: async () => vscode.commands.executeCommand('workbench.action.openGlobalKeybindings') },
+        {
+          label: '$(book) Open KEYMAP',
+          action: async () => {
+            const document = await vscode.workspace.openTextDocument(vscode.Uri.joinPath(context.extensionUri, 'doc', 'KEYMAP.md'));
+            await vscode.window.showTextDocument(document, { preview: false });
+          }
+        }
+      ];
+
+      const choice = await vscode.window.showQuickPick(items, {
+        placeHolder: 'MIV menu'
+      });
+      if (!choice) {
+        return;
+      }
+
+      await choice.action();
     }),
     vscode.commands.registerCommand('miv.setAnchor', () => {
       const editor = vscode.window.activeTextEditor;

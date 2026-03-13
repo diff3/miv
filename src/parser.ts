@@ -780,6 +780,39 @@ function parseImmediateCountCommand(commandKey: string, count: number, sequence:
     };
   }
 
+  if (commandKey === MIV_KEYS.commands.replaceWord) {
+    return {
+      status: 'complete',
+      command: {
+        sequence,
+        action: 'replaceWord',
+        args: [count]
+      }
+    };
+  }
+
+  if (commandKey === MIV_KEYS.commands.toggleCaseChar) {
+    return {
+      status: 'complete',
+      command: {
+        sequence,
+        action: 'toggleCaseChar',
+        args: [count]
+      }
+    };
+  }
+
+  if (commandKey === MIV_KEYS.commands.toggleCaseWord) {
+    return {
+      status: 'complete',
+      command: {
+        sequence,
+        action: 'toggleCaseWord',
+        args: [count]
+      }
+    };
+  }
+
   if (commandKey === MIV_KEYS.commands.gotoLine) {
     return {
       status: 'complete',
