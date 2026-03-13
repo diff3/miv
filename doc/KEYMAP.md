@@ -1,13 +1,11 @@
 # miv Keymap
 
-## Mode
+## Modes
 
-- `Space` -> NAV to INSERT (only when buffer is empty)
-- `Esc` -> INSERT to NAV
-- NAV cursor style -> `block`
-- INSERT cursor style -> `line`
+- `Space` -> enter `INSERT` from empty NAV buffer
+- `Esc` -> return to `NAV`
 
-## Motion (NAV)
+## Motion
 
 - `a` -> char left
 - `d` -> char right
@@ -15,70 +13,76 @@
 - `s` -> line down
 - `W` -> page up
 - `S` -> page down
+- `A` -> line start
+- `D` -> line end
 - `q` -> word left
-- `e` -> end of next word
-- `Q` -> word-end left
-- `E` -> start of next word
-- `A` (`Shift+A`) -> start of line
-- `D` (`Shift+D`) -> end of line
-- `[count] + motion` -> repeat motion (`10w`, `3D`)
+- `e` -> word end right
+- `Q` -> word end left
+- `E` -> word start right
+- `[count]motion` -> counted motion, for example `10w`, `3D`
+- `g` -> go to line 1
+- `[count]g` -> go to line `[count]`
+- `G` -> document bottom
 
-## Edit Commands
+## Edit
 
 - `x` -> delete char right
 - `X` -> delete word right
-- `B` -> delete from cursor to end of line
+- `B` -> delete to line end
 - `b` -> delete line
+- `[count]x` -> delete `[count]` characters
+- `[count]b` -> delete `[count]` lines
 - `y` -> yank line
 - `Y` -> yank word
-- `p` -> paste after cursor (register `9`)
-- `P` -> paste before cursor (register `9`)
-- `r` -> replace character (delete right + enter INSERT)
-- `R` -> replace word (delete word right + enter INSERT)
-- `-` -> delete to end of line + enter INSERT
-- `_` -> replace line + enter INSERT
-- `%` -> jump to matching bracket
-- `&` -> join current line with next line
-- `i` -> enter INSERT
-- `I` -> line start + enter INSERT
-- `k` -> line end + enter INSERT
-- `o` -> open line below + enter INSERT
-- `O` -> open line above + enter INSERT
+- `[count]y` -> yank `[count]` lines
+- `[count]Y` -> yank `[count]` words
+- `p` -> paste after
+- `P` -> paste before
+- `r<char>` -> replace one character
+- `R` -> replace current word and enter `INSERT`
+- `§` -> toggle case under cursor
+- `shift+§` -> toggle case for current word
+- `-` -> change to line end and enter `INSERT`
+- `_` -> change line and enter `INSERT`
+- `%` -> jump bracket match
+- `&` -> join line with next line
+- `i` -> enter `INSERT`
+- `I` -> line start + `INSERT`
+- `k` -> line end + `INSERT`
+- `o` -> open line below + `INSERT`
+- `O` -> open line above + `INSERT`
 - `u` -> undo
-- `c` / `.` -> repeat last repeatable edit
-- `g` -> go to line 1
-- `[count]g` -> go to line count (`25g`)
-- `G` -> bottom of document
-- `/` -> open find
+- `c` -> repeat last repeatable command
+- `.` -> repeat last repeatable command
+
+## Search
+
+- `/` -> literal search forward
+- `\` -> literal search backward
+- `,` -> regex search
+- prompt prefix for regex search -> `~`
+- `n` -> next match
+- `N` -> previous match
+
+## Replace
+
+- `=replacement` -> replace all matches for the last search pattern
+- `=replacement search` -> replace all matches for `search` with `replacement`
+- after a replace rule exists:
+  - `c` / `.` -> replace next/current match with the active rule
+  - `Enter` in `NAV` -> replace current match with the active rule
 
 ## Registers
 
-- registers: `0..9`
-- `1p..9p` -> paste register after cursor/line
-- `1v..7v` -> store clipboard in register
+- registers -> `0..9`
+- `1p..9p` -> paste from register
+- `[count] [register]y` -> yank lines to register
+- `[count] [register]x` -> delete chars to register
 - `v` -> open register viewer
-- `[count] [register]y` -> yank lines into register
-- `[count] [register]x` -> delete chars into register
-- examples: `10 3y`, `5 2x`
 
 ## Text Objects
 
-Grammar:
-
-- `[object] [register][command]`
-- `![command]`
-
-Objects:
-
-- `"`, `'`, `(`, `[`, `{`, `<`
-
-Commands:
-
-- `x` -> delete inside object to register
-- `y` -> yank inside object to register
-- `p` -> replace inside object from register
-
-Examples:
+Forms:
 
 - `!y`
 - `!x`
@@ -87,26 +91,28 @@ Examples:
 - `( 2x`
 - `{ 5p`
 
-Resolution:
+Objects:
 
-- explicit and auto text objects use a simple delimiter scan
-- scan left for the nearest opening delimiter
-- scan right for the first matching closing delimiter
-- nested structures are not resolved specially
+- `!`
+- `"`
+- `'`
+- `(`
+- `[`
+- `{`
+- `<`
 
-## Paste Semantics
+Commands:
 
-- register data is either `linewise` or `characterwise`
-- linewise paste inserts full line(s)
-- characterwise paste inserts at cursor
-- `p` inserts after cursor/line, `P` inserts before cursor/line
-- `Ctrl+C` / `Cmd+C` mirrors clipboard into register `9`
-- `Ctrl+V` / `Cmd+V` runs through miv paste command path
+- `y` -> yank inside object
+- `x` -> delete inside object
+- `p` -> replace inside object from register
 
-## Navigation helpers
+## Helpers
 
-- `Alt+a` -> VS Code navigate back
-- `Alt+d` -> VS Code navigate forward
+- `Alt+a` -> history back
+- `Alt+d` -> history forward
 - `Alt+z` -> set anchor
 - `Alt+x` -> jump to anchor
-- `Ctrl+f` -> open find in NAV
+- `Ctrl+f` -> VS Code find
+- `Ctrl/Cmd+C` -> mirror clipboard to register `9`
+- `Ctrl/Cmd+V` -> MIV paste path

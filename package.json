@@ -3,6 +3,10 @@
   "displayName": "miv",
   "description": "Modern Improved Vi",
   "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/diff3/miv"
+  },
   "engines": {
     "vscode": "^1.110.0"
   },

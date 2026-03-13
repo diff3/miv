@@ -1,83 +1,143 @@
 # miv Architecture
 
-miv is implemented as a VS Code extension with a command pipeline.
-
-## Runtime flow
+## Runtime Flow
 
 Keyboard input
--> key normalization (`NAV_KEY_MAP`)
--> sequence buffer (`extension.ts`)
--> parser (`parser.ts`)
--> dispatcher (`dispatcher.ts`)
--> VS Code commands/API
+-> key normalization in `config.ts`
+-> buffered handling in `extension.ts`
+-> parse in `parser.ts`
+-> execution in `dispatcher.ts`
+-> VS Code editor APIs
 
 ## Modules
 
-- `src/extension.ts`
-  - mode state sync, input buffer, timer handling
-  - clipboard mirror to register `9`
-  - status bar/cursor feedback hooks
-- `src/parser.ts`
-  - converts buffered NAV input into `ParsedCommand`
-  - handles motions, immediate commands, counts, register forms, text-objects
-- `src/dispatcher.ts`
-  - executes parsed actions
-  - applies register writes/reads
-  - implements paste semantics (linewise vs characterwise)
-  - keeps repeatable command state
-- `src/state.ts`
-  - in-memory runtime state
-  - registers `0..9` with `{ text, linewise }`
-- `src/config.ts`
-  - key constants and NAV key normalization map
+### `src/config.ts`
 
-## Parser model
+Central source of truth for:
 
-Responsibilities:
+- modes
+- normalized key sequences
+- NAV key bindings
+- command constants
 
-1. resolve motion from `MOTION_TABLE`
-2. resolve command and syntax forms
-3. return dispatch-ready command object
+### `src/state.ts`
+
+Mutable runtime session state:
+
+- current mode
+- last repeatable command
+- search state
+- replace state
+- active match list
+- registers
+- anchors
+
+### `src/parser.ts`
+
+Turns buffered input into `ParsedCommand`.
+
+Key responsibilities:
+
+- resolve motions from `MOTION_TABLE`
+- resolve single-key commands
+- parse counted forms
+- parse register-targeted forms
+- parse text-object forms
+- parse replace input payloads
+
+### `src/dispatcher.ts`
+
+Executes parsed commands that are pure editor actions:
+
+- motions
+- delete/yank/paste
+- replace char / replace word
+- line change commands
+- case toggles
+- register reads and writes
+- text-object execution
+
+### `src/extension.ts`
+
+Handles command flows that need session context and temporary input modes:
+
+- sequence buffering
+- mode switching
+- search input
+- regex input
+- replace input
+- match highlighting
+- repeat routing for extension-managed commands
+- clipboard mirroring
+
+### `src/uiFeedback.ts`
+
+UI-only feedback:
+
+- status bar
+- command preview
+- transient messages
+- yank highlight
+
+### `src/registerViewer.ts`
+
+QuickPick UI for register inspection and register paste/store actions.
+
+## Parser Model
 
 Supported syntax families:
 
-- single-key commands (`x`, `X`, `B`, `b`, `y`, `Y`, `p`, `P`, `-`, `_`, `%`, `&`, `i`, `I`, `k`, `o`, `O`, `r`, `R`, `u`, `c`, `.`, `/`, `g`, `G`, `v`)
-- counted commands (`10x`, `5b`, `25g`, counted motions)
-- operator+motion yank (`y` + motion)
-- register-targeted count commands (`10 3y`, `5 2x`)
-- register paste (`3p`)
-- text-object commands (`" 3y`, `( 2x`, `{ 5p`)
+- single-key commands
+- counted motions and commands
+- `r<char>`
+- register-targeted delete/yank
+- register paste
+- text-object commands
+- replace payloads after `=`
 
-## Dispatcher model
+The parser intentionally avoids nested or recursive grammars.
 
-Action groups:
+## Search Model
 
-- motion actions (`cursor...`)
-- edit actions (delete/yank/paste/change/replace/join)
-- navigation actions (`gotoLine`, bracket match)
-- register actions (`storeRegister`, register paste)
+Search is extension-managed, not delegated to VS Code find.
 
-## Register model
+The state keeps:
+
+- current search input
+- last search pattern
+- whether the last search was regex
+- match offsets
+- match lengths
+- current active match index
+
+That shared match state is reused by:
+
+- `/`
+- `\`
+- `,`
+- `n`
+- `N`
+- replace rule targeting
+
+## Repeat Model
+
+Repeatable commands are split between two layers:
+
+- dispatcher-managed repeat for editor actions
+- extension-managed repeat for search and replace flows
+
+`c` and `.` always replay `state.lastCommand` through the same execution path that originally handled it.
+
+## Register Model
 
 Registers are typed:
 
 - `text: string`
-- `linewise: boolean`
+- `type: 'charwise' | 'linewise'`
 
-Write behavior:
+This allows paste semantics to stay correct for:
 
-- line yanks -> linewise
-- char/word deletes/yanks -> characterwise
-- clipboard mirror updates register `9`
-
-Paste behavior:
-
-- linewise register content inserts as full lines
-- characterwise register content inserts at cursor
-- `p` and `P` choose after/before insertion direction
-
-## Repeat model
-
-Repeat commands: `c` and `.`.
-
-Dispatcher stores repeatable edits and replays the last stored command.
+- line yanks
+- line deletes
+- charwise operations
+- clipboard mirror

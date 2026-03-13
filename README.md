@@ -1,83 +1,148 @@
 # miv
 
-Modern Improved Vi as a VS Code extension.
+Modern Improved Vi for VS Code.
 
 ## Modes
 
-- `NAV`: command mode, block cursor.
-- `INSERT`: text input mode, line cursor.
-- `Esc`: returns to `NAV`.
-- `Space`: enters `INSERT` from `NAV` when pressed as first key in an empty NAV sequence.
+- `NAV`: command mode with block cursor
+- `INSERT`: normal text input with line cursor
+- `Esc`: return to `NAV`
+- `Space`: enter `INSERT` from empty NAV buffer
 
-## NAV keymap
+## Core Navigation
 
-Motions:
+- `a` left
+- `d` right
+- `w` up
+- `s` down
+- `W` page up
+- `S` page down
+- `A` line start
+- `D` line end
+- `q` word left
+- `e` word end right
+- `Q` word end left
+- `E` word start right
+- counts work for motions, for example `10w`, `5a`, `25g`
 
-- `a` left, `d` right, `w` up, `s` down
-- `W` page up, `S` page down
-- `A` line start, `D` line end
-- `q` word left, `e` word end right
-- `Q` word end left, `E` word start right
-- counts for motions: `10w`, `3D`
+## Editing
 
-Edit and command keys:
+- `x` delete character right
+- `X` delete word right
+- `B` delete to line end
+- `b` delete line
+- `y` yank line
+- `Y` yank word
+- `p` paste after
+- `P` paste before
+- `r<char>` replace character under cursor
+- `R` delete current word and enter `INSERT`
+- `§` toggle case for the character under cursor
+- `shift+§` toggle case for the whole word under cursor
+- `-` change to line end and enter `INSERT`
+- `_` change line and enter `INSERT`
+- `%` jump to matching bracket
+- `&` join line with next line
+- `i` enter `INSERT`
+- `I` line start and enter `INSERT`
+- `k` line end and enter `INSERT`
+- `o` open line below and enter `INSERT`
+- `O` open line above and enter `INSERT`
+- `u` undo
+- `c` or `.` repeat the last repeatable command
+- `g` go to line 1, or `[count]g` for a specific line
+- `G` go to bottom of document
 
-- `x`: delete char right
-- `X`: delete word right
-- `B`: delete from cursor to end of line
-- `b`: delete line
-- `y`: yank line
-- `Y`: yank word
-- `p`: paste after cursor (register `9`)
-- `P`: paste before cursor (register `9`)
-- `r`: replace char and enter INSERT
-- `R`: replace word and enter INSERT
-- `-`: change to end of line and enter INSERT
-- `_`: change line and enter INSERT
-- `%`: jump to matching bracket
-- `&`: join current line with next line
-- `i`: enter INSERT at cursor
-- `I`: go to line start + enter INSERT
-- `k`: go to line end + enter INSERT
-- `o`: open line below + enter INSERT
-- `O`: open line above + enter INSERT
-- `u`: undo
-- `c` or `.`: repeat last repeatable edit
-- `g`: go to line 1 (or `N g` to go to line `N`)
-- `G`: bottom of document
-- `/`: open find
+## Search
 
-## Registers and paste
+- `/` literal search forward
+- `\` literal search backward
+- `,` regex search
+- regex prompt is shown as `~...`
+- `n` next match
+- `N` previous match
+- search highlights can be toggled from the command palette with `MIV: Toggle Search Highlight`
+
+Regex search supports normal JavaScript regular expressions, for example:
+
+- `code\b`
+- `\bcode\b`
+- `\d+`
+
+## Replace
+
+Literal replace uses `=`.
+
+- `=replacement`
+  - replace all matches for the last search pattern
+- `=replacement search`
+  - replace all matches for `search` with `replacement`
+
+Examples:
+
+- `/foo` then `=bar`
+- `,\d+` then `=NUMBER`
+- `=bar foo`
+
+After a replace command, the message shows `replaced X matches`.
+
+The active replace rule remains available for:
+
+- `c` / `.`
+- `Enter` in `NAV`
+
+These apply the current replace rule to the current match selection.
+
+## Registers
 
 - numbered registers: `0..9`
-- `1p..9p`: paste from register (after cursor)
-- `1v..7v`: store clipboard into register
-- `v`: open register viewer
-- `[count] [register]y`: yank lines to register (example: `10 3y`)
-- `[count] [register]x`: delete chars to register (example: `5 2x`)
-- text-objects: `[object] [register][command]`
-  - objects: `!`, `"`, `'`, `(`, `[`, `{`, `<`
-  - commands: `x`, `y`, `p`
-  - examples: `!y`, `!x`, `!p`, `" 3y`, `( 2x`, `{ 5p`
-  - delimiter scan is intentionally simple: nearest opening delimiter to the left, first matching closing delimiter to the right, no nested matching
+- `9` mirrors clipboard content
+- `1p..9p` paste from a specific register
+- `[count] [register]y` yank lines to a register, for example `10 3y`
+- `[count] [register]x` delete chars to a register, for example `5 2x`
+- `v` opens the register viewer
 
-Register content stores metadata:
+Registers store:
 
-- `linewise`: used for line yanks and linewise clipboard copies
-- `characterwise`: used for char/word operations
+- `text`
+- `type`: `charwise` or `linewise`
 
-Paste behavior:
+## Text Objects
 
-- linewise register content pastes as full line(s)
-- characterwise register content pastes at cursor position
-- `Ctrl/Cmd+C` mirrors clipboard into register `9`
-- `Ctrl/Cmd+V` pastes through miv command path
+Supported objects:
 
-## Navigation helpers
+- `!` automatic surrounding object
+- `"`
+- `'`
+- `(`
+- `[`
+- `{`
+- `<`
 
-- `Alt+a` / `Alt+d`: VS Code history back/forward
-- `Alt+z` / `Alt+x`: set/jump anchor
-- `Ctrl+f`: find in NAV
+Forms:
+
+- `!y`
+- `!x`
+- `!p`
+- `" 3y`
+- `( 2x`
+- `{ 5p`
+
+Delimiter matching is intentionally simple:
+
+- scan left to nearest opening delimiter
+- scan right to first matching closing delimiter
+- no nested delimiter resolution
+
+## Helpers
+
+- `Alt+a` navigate back in editor history
+- `Alt+d` navigate forward in editor history
+- `Alt+z` set anchor
+- `Alt+x` jump to anchor
+- `Ctrl+f` open VS Code find
+- `Ctrl/Cmd+C` mirror clipboard into register `9`
+- `Ctrl/Cmd+V` run paste through MIV
 
 ## Docs
 
@@ -92,11 +157,3 @@ Paste behavior:
 npm run compile
 npm run lint
 ```
-
-## Support the project
-
-If you enjoy using MIV you can support development and 
-Buy me a coffee https://ko-fi.com/diff3
-
-
-Your support helps continue development.

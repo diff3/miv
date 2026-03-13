@@ -1,95 +1,116 @@
 # miv Design
 
-## Core idea
+## Core Model
 
-miv is a modal editing model for VS Code:
+miv is a modal command layer on top of VS Code.
 
-- directional NAV movement keys
-- immediate edit commands for common operations
-- parser -> dispatcher pipeline for deterministic command execution
+The design is centered on:
 
-## Directional layout
+- directional movement under the left hand
+- immediate edit commands
+- a small parser with deterministic sequence handling
+- typed registers with linewise versus charwise paste behavior
 
-NAV motion keys:
+## Interaction Model
 
-- `a d w s` for left/right/up/down
-- `W S` for page up/down
-- `q e Q E` for word scopes
-- `A D` for line start/end
+`NAV` is command mode.
 
-Counts apply to motions (`10w`, `5a`, `3D`).
+In `NAV`:
 
-## Edit language
+- single keys execute motions and edits
+- counts extend motions and immediate commands
+- special input sub-modes are used for search and replace entry
 
-Immediate edit commands:
+`INSERT` is plain VS Code typing.
 
-- delete: `x`, `X`, `B`, `b`
-- yank: `y`, `Y`, `y + motion`
-- paste: `p`, `P`, `<digit>p`
-- change: `-`, `_`
-- structure: `%`
-- line join: `&`
-- replace/insert transitions: `r`, `R`, `i`, `I`, `k`, `o`, `O`
-- repeat/undo: `c`, `.`, `u`
+## Command Families
 
-Line navigation:
+### Motion
 
-- `g` (line 1 / count target)
-- `G` (document bottom)
+Movement is built around:
 
-Search:
+- `a d w s`
+- `A D`
+- `q e Q E`
+- `W S`
+- `[count]motion`
 
-- `/`
+### Immediate Edit
 
-## Text objects
+Most edits execute immediately:
 
-Grammar:
+- delete commands
+- yank commands
+- paste commands
+- line changes
+- bracket jump
+- line join
+- case toggle
 
-- `[object] [register][command]`
-- `![command]`
+### Input-Driven Commands
 
-Objects:
+Some commands open a temporary input flow:
 
-- `"`, `'`, `(`, `[`, `{`, `<`
+- `/` literal search forward
+- `\` literal search backward
+- `,` regex search with `~` prompt
+- `=` replace input
+- `r<char>` replace-character capture
 
-Commands:
+These flows stay in `NAV`, but temporarily treat typed keys as command input rather than editor text.
 
-- `x` delete inside object to register
-- `y` yank inside object to register
-- `p` replace inside object from register
+## Search and Match Model
 
-Behavior:
+Search stores a match list for the whole document.
 
-- `!x`, `!y`, `!p` auto-detect the surrounding delimiter pair
-- delimiter resolution is intentionally simple
-- scan left to the nearest opening delimiter, then scan right to the first matching closing delimiter
-- nested delimiter depth is ignored
+That match list powers:
 
-## Registers and clipboard
+- current match highlighting
+- all-match highlighting
+- `n` / `N`
+- regex search replay via `c` / `.`
 
-miv keeps numbered registers `0..9`.
+Regex currently acts as a full search mode, not a full regex-substitute language.
+
+## Replace Model
+
+`=` is intentionally simple.
+
+It supports:
+
+- `=replacement`
+  - use the last search pattern
+- `=replacement search`
+  - explicit literal replacement target
+
+After a replace rule exists:
+
+- `c` / `.` reuse it
+- `Enter` in `NAV` applies it to the current selected match
+
+This keeps literal replace ergonomic without overloading it with full regex-substitute syntax.
+
+## Text Objects
+
+Text objects use deliberate non-nested delimiter resolution:
+
+- nearest opening delimiter to the left
+- first matching closing delimiter to the right
+
+This avoids parser complexity and keeps the feature predictable.
+
+## Register Model
+
+Registers are numbered `0..9`.
 
 Each register stores:
 
 - `text`
-- `linewise` flag
+- `type`
 
-Storage rules:
+`type` is either:
 
-- line yank stores `linewise = true`
-- char/word delete/yank stores `linewise = false`
-- clipboard mirror (`register 9`) preserves linewise/characterwise intent
+- `charwise`
+- `linewise`
 
-Paste rules:
-
-- linewise paste inserts whole line(s)
-- characterwise paste inserts at cursor
-- `p` pastes after cursor/line
-- `P` pastes before cursor/line
-
-## Interaction model
-
-- NAV interprets keys as commands
-- INSERT passes keys through
-- `Space` enters INSERT only from empty NAV buffer
-- `Esc` returns to NAV
+Paste behavior depends on register type rather than command name alone.
