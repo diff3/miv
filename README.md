@@ -57,6 +57,9 @@ The full command reference is available in [`doc/KEYMAP.md`](doc/KEYMAP.md).
 
 https://github.com/diff3/miv
 
+## Development
+Run `npm run generate-keymap` after changing `NAV_KEY_BINDINGS` in [`src/config.ts`](src/config.ts).
+
 ## Support Development
 If you enjoy using MIV and want to support development you can leave a tip here:
 

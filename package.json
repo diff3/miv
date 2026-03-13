@@ -252,212 +252,385 @@
     "keybindings": [
       {
         "key": "a",
-        "command": "miv.cursorLeft",
+        "command": "miv.handleKey",
+        "args": "a",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "d",
-        "command": "miv.cursorRight",
+        "command": "miv.handleKey",
+        "args": "d",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "w",
-        "command": "miv.cursorUp",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
-      },
-      {
-        "key": "shift+w",
-        "command": "miv.pageUp",
+        "command": "miv.handleKey",
+        "args": "w",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "s",
-        "command": "miv.cursorDown",
+        "command": "miv.handleKey",
+        "args": "s",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+w",
+        "command": "miv.handleKey",
+        "args": "W",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "shift+s",
-        "command": "miv.pageDown",
+        "command": "miv.handleKey",
+        "args": "S",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "shift+a",
-        "command": "miv.lineStart",
+        "command": "miv.handleKey",
+        "args": "A",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "shift+d",
-        "command": "miv.lineEnd",
+        "command": "miv.handleKey",
+        "args": "D",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "q",
-        "command": "miv.wordLeft",
+        "command": "miv.handleKey",
+        "args": "q",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "e",
-        "command": "miv.wordEndRight",
+        "command": "miv.handleKey",
+        "args": "e",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "shift+q",
-        "command": "miv.wordEndLeft",
+        "command": "miv.handleKey",
+        "args": "Q",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "shift+e",
-        "command": "miv.wordStartRight",
+        "command": "miv.handleKey",
+        "args": "E",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "x",
-        "command": "miv.deleteChar",
+        "command": "miv.handleKey",
+        "args": "x",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "b",
-        "command": "miv.deleteLine",
+        "command": "miv.handleKey",
+        "args": "b",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+b",
+        "command": "miv.handleKey",
+        "args": "B",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "shift+x",
-        "command": "miv.deleteWord",
+        "command": "miv.handleKey",
+        "args": "X",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "shift+y",
-        "command": "miv.yankWord",
+        "command": "miv.handleKey",
+        "args": "Y",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "space",
-        "command": "miv.spaceInput",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
-      },
-      {
-        "key": "shift+1",
-        "command": "miv.textObjectAuto",
+        "command": "miv.handleKey",
+        "args": " ",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "r",
-        "command": "miv.replaceChar",
+        "command": "miv.handleKey",
+        "args": "r",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "shift+r",
-        "command": "miv.replaceWord",
+        "command": "miv.handleKey",
+        "args": "R",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "§",
-        "command": "miv.toggleCaseChar",
+        "command": "miv.handleKey",
+        "args": "§",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "shift+§",
-        "command": "miv.toggleCaseWord",
+        "command": "miv.handleKey",
+        "args": "°",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "c",
-        "command": "miv.repeatLastCommand",
+        "command": "miv.handleKey",
+        "args": "c",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": ".",
-        "command": "miv.repeatLastCommandAlias",
+        "command": "miv.handleKey",
+        "args": ".",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "i",
-        "command": "miv.enterInsert",
+        "command": "miv.handleKey",
+        "args": "i",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "shift+i",
-        "command": "miv.insertAtLineStart",
+        "command": "miv.handleKey",
+        "args": "I",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "k",
-        "command": "miv.insertAtLineEnd",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
-      },
-      {
-        "key": "u",
-        "command": "miv.undo",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
-      },
-      {
-        "key": "y",
-        "command": "miv.yankLine",
+        "command": "miv.handleKey",
+        "args": "k",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "o",
-        "command": "miv.openLineBelow",
+        "command": "miv.handleKey",
+        "args": "o",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "shift+o",
-        "command": "miv.openLineAbove",
+        "command": "miv.handleKey",
+        "args": "O",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "u",
+        "command": "miv.handleKey",
+        "args": "u",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "y",
+        "command": "miv.handleKey",
+        "args": "y",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "p",
-        "command": "miv.paste",
+        "command": "miv.handleKey",
+        "args": "p",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
-        "key": "v",
-        "command": "miv.showRegistersKey",
+        "key": "shift+p",
+        "command": "miv.handleKey",
+        "args": "P",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+5",
+        "command": "miv.handleKey",
+        "args": "%",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+7",
+        "command": "miv.handleKey",
+        "args": "&",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "=",
-        "command": "miv.replaceMatches",
+        "command": "miv.handleKey",
+        "args": "=",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "-",
+        "command": "miv.handleKey",
+        "args": "-",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+-",
+        "command": "miv.handleKey",
+        "args": "_",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "\"",
+        "command": "miv.handleKey",
+        "args": "\"",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "'",
+        "command": "miv.handleKey",
+        "args": "'",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "(",
+        "command": "miv.handleKey",
+        "args": "(",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "[",
+        "command": "miv.handleKey",
+        "args": "[",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "{",
+        "command": "miv.handleKey",
+        "args": "{",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "<",
+        "command": "miv.handleKey",
+        "args": "<",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "!",
+        "command": "miv.handleKey",
+        "args": "!",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "v",
+        "command": "miv.handleKey",
+        "args": "v",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "g",
+        "command": "miv.handleKey",
+        "args": "g",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+g",
+        "command": "miv.handleKey",
+        "args": "G",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "0",
+        "command": "miv.handleKey",
+        "args": "0",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "1",
+        "command": "miv.handleKey",
+        "args": "1",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "2",
+        "command": "miv.handleKey",
+        "args": "2",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "3",
+        "command": "miv.handleKey",
+        "args": "3",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "4",
+        "command": "miv.handleKey",
+        "args": "4",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "5",
+        "command": "miv.handleKey",
+        "args": "5",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "6",
+        "command": "miv.handleKey",
+        "args": "6",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "7",
+        "command": "miv.handleKey",
+        "args": "7",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "8",
+        "command": "miv.handleKey",
+        "args": "8",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "9",
+        "command": "miv.handleKey",
+        "args": "9",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "/",
-        "command": "miv.searchForward",
+        "command": "miv.handleKey",
+        "args": "/",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "\\",
-        "command": "miv.searchBackward",
+        "command": "miv.handleKey",
+        "args": "\\",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": ",",
-        "command": "miv.searchRegex",
+        "command": "miv.handleKey",
+        "args": ",",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "n",
-        "command": "miv.searchNext",
+        "command": "miv.handleKey",
+        "args": "n",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "shift+n",
-        "command": "miv.searchPrevious",
+        "command": "miv.handleKey",
+        "args": "N",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
         "key": "backspace",
         "command": "miv.searchBackspace",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
-      },
-      {
-        "key": "g",
-        "command": "miv.gotoLine",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
-      },
-      {
-        "key": "shift+g",
-        "command": "miv.documentBottom",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {
@@ -522,6 +695,7 @@
     ]
   },
   "scripts": {
+    "generate-keymap": "node scripts/generateKeybindings.js",
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
