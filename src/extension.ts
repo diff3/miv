@@ -23,6 +23,49 @@ import { createUiFeedback } from './uiFeedback';
 import { createInitialState, setAnchorFromEditor, setInsertMode, setLastCommand, setNavMode, storeRegister, type MivMode } from './state';
 
 const DEFAULT_PARTIAL_FALLBACK_DELAY_MS = CONFIG.timeouts.sequence;
+const HANDLE_KEY_FORWARD_COMMANDS = [
+  { command: 'miv.cursorLeft', key: 'a' },
+  { command: 'miv.cursorRight', key: 'd' },
+  { command: 'miv.cursorUp', key: 'w' },
+  { command: 'miv.pageUp', key: 'W' },
+  { command: 'miv.cursorDown', key: 's' },
+  { command: 'miv.pageDown', key: 'S' },
+  { command: 'miv.lineStart', key: 'A' },
+  { command: 'miv.lineEnd', key: 'D' },
+  { command: 'miv.wordLeft', key: 'q' },
+  { command: 'miv.wordEndRight', key: 'e' },
+  { command: 'miv.wordEndLeft', key: 'Q' },
+  { command: 'miv.wordStartRight', key: 'E' },
+  { command: 'miv.deleteChar', key: 'x' },
+  { command: 'miv.deleteLine', key: 'b' },
+  { command: 'miv.deleteWord', key: 'X' },
+  { command: 'miv.yankWord', key: 'Y' },
+  { command: 'miv.spaceInput', key: ' ' },
+  { command: 'miv.textObjectAuto', key: '!' },
+  { command: 'miv.replaceChar', key: 'r' },
+  { command: 'miv.replaceWord', key: 'R' },
+  { command: 'miv.toggleCaseChar', key: '§' },
+  { command: 'miv.toggleCaseWord', key: '°' },
+  { command: 'miv.repeatLastCommand', key: 'c' },
+  { command: 'miv.repeatLastCommandAlias', key: '.' },
+  { command: 'miv.enterInsert', key: 'i' },
+  { command: 'miv.insertAtLineStart', key: 'I' },
+  { command: 'miv.insertAtLineEnd', key: 'k' },
+  { command: 'miv.undo', key: 'u' },
+  { command: 'miv.yankLine', key: 'y' },
+  { command: 'miv.openLineBelow', key: 'o' },
+  { command: 'miv.openLineAbove', key: 'O' },
+  { command: 'miv.paste', key: 'p' },
+  { command: 'miv.showRegistersKey', key: 'v' },
+  { command: 'miv.replaceMatches', key: '=' },
+  { command: 'miv.searchForward', key: '/' },
+  { command: 'miv.searchBackward', key: '\\' },
+  { command: 'miv.searchRegex', key: ',' },
+  { command: 'miv.searchNext', key: 'n' },
+  { command: 'miv.searchPrevious', key: 'N' },
+  { command: 'miv.gotoLine', key: 'g' },
+  { command: 'miv.documentBottom', key: 'G' }
+] as const;
 
 /**
  * Activate extension commands and input pipeline.
@@ -695,6 +738,9 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   const subscriptions = [
+    ...HANDLE_KEY_FORWARD_COMMANDS.map(({ command, key }) => vscode.commands.registerCommand(command, async () => {
+      await vscode.commands.executeCommand('miv.handleKey', key);
+    })),
     vscode.commands.registerCommand('type', async (args: { text?: string }) => {
       const key = args?.text;
       if (typeof key !== 'string') {
