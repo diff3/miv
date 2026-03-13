@@ -6,6 +6,10 @@
 
 MIV is a lightweight modal editing extension for VS Code inspired by Vim but designed for modern IDE workflows.
 
+MIV is inspired by Vim's modal editing philosophy but is designed specifically for modern IDE workflows in VS Code.
+
+The goal is not to replicate Vim, but to provide a lightweight modal interface that works naturally with VS Code features such as LSP, refactoring, multi-cursor editing, and extensions.
+
 It focuses on:
 
 - simple modal editing
@@ -43,7 +47,7 @@ Example:
 {
   "key": "h",
   "command": "miv.handleKey",
-  "args": "a",
+  "args": "LEFT",
   "when": "editorTextFocus && miv.mode == 'NAV'"
 }
 ```

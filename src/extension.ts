@@ -4,6 +4,8 @@
  * This module wires editor input events to parser/dispatcher execution, keeps
  * runtime state synchronized with VS Code context, and coordinates UI helpers.
  */
+import * as fs from 'fs';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import {
   CONFIG,
@@ -12,8 +14,14 @@ import {
   NAV_KEY_MAP,
   NAV_INPUT_KEY_SET,
   REPEATABLE_BUILTIN_COMMANDS,
+  TOKENS,
+  getSequenceValueForToken,
   isDigitKey,
-  isManualRegisterKey
+  isManualRegisterKey,
+  refreshKeymapProfiles,
+  KEYMAP_PROFILES,
+  normalizeKey,
+  setActiveKeymapName
 } from './config';
 import { dispatchCommand, getCommandUsageStatsSnapshot } from './dispatcher';
 import type { ParsedCommand } from './parser';
@@ -77,6 +85,26 @@ const HANDLE_KEY_FORWARD_COMMANDS = [
  *   Registers commands, mutates workspace cursor style, and initializes mode UI.
  */
 export function activate(context: vscode.ExtensionContext): void {
+  const builtinKeymapDir = path.join(context.extensionPath, 'keymaps');
+  const userKeymapDir = path.join(path.dirname(context.extensionPath), 'miv');
+  if (!fs.existsSync(userKeymapDir)) {
+    fs.mkdirSync(userKeymapDir, { recursive: true });
+  }
+  refreshKeymapProfiles(builtinKeymapDir, userKeymapDir);
+
+  const syncKeymapProfile = (): void => {
+    const config = vscode.workspace.getConfiguration('miv');
+    const savedKeymap = config.get<string>('keymap');
+    if (savedKeymap) {
+      setActiveKeymapName(savedKeymap);
+      return;
+    }
+
+    setActiveKeymapName('default');
+  };
+
+  syncKeymapProfile();
+
   const state = createInitialState();
   const statsOutput = vscode.window.createOutputChannel('MIV Stats');
   const searchDecoration = vscode.window.createTextEditorDecorationType({
@@ -85,7 +113,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const searchCurrentDecoration = vscode.window.createTextEditorDecorationType({
     backgroundColor: 'rgba(255,180,0,0.45)'
   });
-  let buffer = '';
+  let inputBuffer: string[] = [];
+  let previewBuffer = '';
   let lastClipboard = '';
   let fallbackTimer: NodeJS.Timeout | undefined;
 
@@ -109,7 +138,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const resetInputState = (): void => {
     // Full reset is used when a command boundary is reached.
     clearFallbackTimer();
-    buffer = '';
+    inputBuffer = [];
+    previewBuffer = '';
     state.replaceRuleInputActive = false;
     state.replaceRuleBuffer = '';
     ui.showCommandPreview(undefined);
@@ -600,7 +630,8 @@ export function activate(context: vscode.ExtensionContext): void {
       action: 'replaceChar',
       args: [key]
     });
-    buffer = '';
+    inputBuffer = [];
+    previewBuffer = '';
     ui.showCommandPreview(undefined);
   };
 
@@ -635,13 +666,22 @@ export function activate(context: vscode.ExtensionContext): void {
     return parsed.action === 'operatorMotion' && parsed.args?.[0] === MIV_KEYS.operators.yank;
   };
 
-  const toSequenceKey = (inputKey: string): string | undefined => {
-    const sequenceKey = NAV_KEY_MAP[inputKey] ?? inputKey;
-    if (!NAV_INPUT_KEY_SET.has(sequenceKey)) {
+  const toInputToken = (inputKey: string): string | undefined => {
+    if (NAV_INPUT_KEY_SET.has(inputKey)) {
+      return inputKey;
+    }
+
+    const normalizedKey = normalizeKey(inputKey);
+    const token = NAV_KEY_MAP[normalizedKey] ?? normalizedKey;
+    if (!NAV_INPUT_KEY_SET.has(token)) {
       return undefined;
     }
 
-    return sequenceKey;
+    return token;
+  };
+
+  const hasBufferedTokens = (...expectedTokens: string[]): boolean => {
+    return inputBuffer.length === expectedTokens.length && expectedTokens.every((token, index) => inputBuffer[index] === token);
   };
 
   const formatStatsSection = (title: string, counts: Record<string, number>): string[] => {
@@ -738,6 +778,11 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   const subscriptions = [
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration('miv.keymap')) {
+        syncKeymapProfile();
+      }
+    }),
     ...HANDLE_KEY_FORWARD_COMMANDS.map(({ command, key }) => vscode.commands.registerCommand(command, async () => {
       await vscode.commands.executeCommand('miv.handleKey', key);
     })),
@@ -810,7 +855,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       if (key === MIV_KEYS.mode.enterInsert) {
-        if (state.mode === MIV_MODES.NAV && buffer.length === 0) {
+        if (state.mode === MIV_MODES.NAV && inputBuffer.length === 0) {
           await setInsert();
           return;
         }
@@ -825,12 +870,12 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       if (state.mode === MIV_MODES.NAV) {
-        const sequenceKey = toSequenceKey(key);
-        if (!sequenceKey) {
+        const inputToken = toInputToken(key);
+        if (!inputToken) {
           return;
         }
 
-        await vscode.commands.executeCommand('miv.handleKey', sequenceKey);
+        await vscode.commands.executeCommand('miv.handleKey', inputToken);
         return;
       }
 
@@ -860,53 +905,54 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      const sequenceKey = toSequenceKey(key);
-      if (!sequenceKey) {
+      const inputToken = toInputToken(key);
+      if (!inputToken) {
         return;
       }
 
       clearFallbackTimer();
-      if (sequenceKey === MIV_KEYS.mode.enterInsert && buffer.length === 0) {
+      if (inputToken === TOKENS.SPACE && inputBuffer.length === 0) {
         await setInsert();
         return;
       }
 
-      if (sequenceKey === MIV_KEYS.commands.searchForward && buffer.length === 0) {
+      if (inputToken === TOKENS.SEARCH_FORWARD && inputBuffer.length === 0) {
         startSearchInput('forward');
         return;
       }
 
-      if (sequenceKey === MIV_KEYS.commands.searchBackward && buffer.length === 0) {
+      if (inputToken === TOKENS.SEARCH_BACKWARD && inputBuffer.length === 0) {
         startSearchInput('backward');
         return;
       }
 
-      if (sequenceKey === MIV_KEYS.commands.searchRegex && buffer.length === 0) {
+      if (inputToken === TOKENS.SEARCH_REGEX && inputBuffer.length === 0) {
         startSearchInput('forward', 'regex');
         return;
       }
 
-      if (sequenceKey === MIV_KEYS.commands.replaceMatches && buffer.length === 0) {
+      if (inputToken === TOKENS.REPLACE_MATCHES && inputBuffer.length === 0) {
         startReplaceRuleInput();
         return;
       }
 
-      buffer += sequenceKey;
-      ui.showCommandPreview(getPreviewText(buffer));
+      inputBuffer.push(inputToken);
+      previewBuffer += getSequenceValueForToken(inputToken);
+      ui.showCommandPreview(getPreviewText(previewBuffer));
 
-      const result = parseInput(buffer);
+      const result = parseInput(inputBuffer);
 
       if (result.status === 'partial') {
         if (!result.fallbackCommand) {
-          if (buffer === MIV_KEYS.operators.replace) {
+          if (hasBufferedTokens(TOKENS.REPLACE_CHAR)) {
             state.replaceCharPending = true;
           }
           return;
         }
 
-        if (buffer === MIV_KEYS.commands.replaceMatches) {
+        if (hasBufferedTokens(TOKENS.REPLACE_MATCHES)) {
           state.replaceRuleInputActive = true;
-          state.replaceRuleBuffer = buffer;
+          state.replaceRuleBuffer = previewBuffer;
           updateReplaceRulePreview();
         }
 
@@ -918,7 +964,8 @@ export function activate(context: vscode.ExtensionContext): void {
           } else {
             await runParsedCommand(result.fallbackCommand as ParsedCommand);
           }
-          buffer = '';
+          inputBuffer = [];
+          previewBuffer = '';
           ui.showCommandPreview(undefined);
           fallbackTimer = undefined;
         }, result.fallbackDelayMs ?? DEFAULT_PARTIAL_FALLBACK_DELAY_MS);
@@ -926,7 +973,8 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       if (result.status === 'invalid' || !result.command) {
-        buffer = '';
+        inputBuffer = [];
+        previewBuffer = '';
         ui.showCommandPreview(undefined);
         return;
       }
@@ -948,14 +996,16 @@ export function activate(context: vscode.ExtensionContext): void {
 
       if (result.command.action === 'searchNext') {
         await jumpToNextMatch();
-        buffer = '';
+        inputBuffer = [];
+        previewBuffer = '';
         ui.showCommandPreview(undefined);
         return;
       }
 
       if (result.command.action === 'searchPrevious') {
         await jumpToPreviousMatch();
-        buffer = '';
+        inputBuffer = [];
+        previewBuffer = '';
         ui.showCommandPreview(undefined);
         return;
       }
@@ -967,7 +1017,8 @@ export function activate(context: vscode.ExtensionContext): void {
         const isRegex = explicitSearch === undefined ? state.lastSearchIsRegex : false;
         if (search.length === 0) {
           ui.showMessage('no previous search');
-          buffer = '';
+          inputBuffer = [];
+          previewBuffer = '';
           ui.showCommandPreview(undefined);
           return;
         }
@@ -979,20 +1030,23 @@ export function activate(context: vscode.ExtensionContext): void {
           sequence: MIV_KEYS.commands.replaceMatches,
           action: 'applyReplaceRule'
         });
-        buffer = '';
+        inputBuffer = [];
+        previewBuffer = '';
         ui.showCommandPreview(undefined);
         return;
       }
 
       if (result.command.action === 'applyReplaceRule') {
         await applyReplaceRule();
-        buffer = '';
+        inputBuffer = [];
+        previewBuffer = '';
         ui.showCommandPreview(undefined);
         return;
       }
 
       await runParsedCommand(result.command);
-      buffer = '';
+      inputBuffer = [];
+      previewBuffer = '';
       ui.showCommandPreview(undefined);
     }),
     vscode.commands.registerCommand('miv.toggleMode', async () => {
@@ -1092,7 +1146,8 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand('miv.copyToClipboard', async () => {
       clearFallbackTimer();
-      buffer = '';
+      inputBuffer = [];
+      previewBuffer = '';
       ui.showCommandPreview(undefined);
       await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
       const clipboardValue = await vscode.env.clipboard.readText();
@@ -1109,7 +1164,8 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand('miv.pasteFromClipboard', async () => {
       clearFallbackTimer();
-      buffer = '';
+      inputBuffer = [];
+      previewBuffer = '';
       ui.showCommandPreview(undefined);
       await runParsedCommand(
         {
@@ -1120,7 +1176,8 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand('miv.storeRegister', async (register: string) => {
       clearFallbackTimer();
-      buffer = '';
+      inputBuffer = [];
+      previewBuffer = '';
       ui.showCommandPreview(undefined);
       const registerKey = String(register);
       if (!isManualRegisterKey(registerKey)) {
@@ -1142,7 +1199,8 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       clearFallbackTimer();
-      buffer = '';
+      inputBuffer = [];
+      previewBuffer = '';
       ui.showCommandPreview(undefined);
       await showRegisterViewer({
         state,
@@ -1161,15 +1219,34 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('miv.openKeybindings', async () => {
       await vscode.commands.executeCommand('workbench.action.openGlobalKeybindings', 'miv');
     }),
+    vscode.commands.registerCommand('miv.switchKeymap', async () => {
+      refreshKeymapProfiles(builtinKeymapDir, userKeymapDir);
+      const options = Object.keys(KEYMAP_PROFILES);
+      const selected = await vscode.window.showQuickPick(options, {
+        placeHolder: 'Select MIV keymap'
+      });
+      if (!selected) {
+        return;
+      }
+
+      setActiveKeymapName(selected);
+      await vscode.workspace
+        .getConfiguration('miv')
+        .update('keymap', selected, vscode.ConfigurationTarget.Global);
+
+      vscode.window.showInformationMessage(`MIV keymap switched to: ${selected}`);
+    }),
     vscode.commands.registerCommand('miv.openMenu', async () => {
       clearFallbackTimer();
-      buffer = '';
+      inputBuffer = [];
+      previewBuffer = '';
       ui.showCommandPreview(undefined);
 
       const items = [
         { label: '$(graph) Command Stats', action: async () => vscode.commands.executeCommand('miv.showCommandStats') },
         { label: '$(files) Registers', action: async () => vscode.commands.executeCommand('miv.showRegisters') },
         { label: '$(search) Toggle Search Highlight', action: async () => vscode.commands.executeCommand('miv.toggleSearchHighlight') },
+        { label: '$(keyboard) Switch Keymap', action: async () => vscode.commands.executeCommand('miv.switchKeymap') },
         { label: '$(keyboard) Change Keybindings', action: async () => vscode.commands.executeCommand('miv.openKeybindings') },
         { label: '$(book) Open KEYMAP', action: async () => vscode.commands.executeCommand('miv.openKeymap') }
       ];

@@ -1,3 +1,6 @@
+import * as fs from 'fs';
+import * as path from 'path';
+
 /**
  * MIV configuration and key vocabulary.
  *
@@ -58,6 +61,64 @@ export const MIV_MODES = {
 } as const;
 
 export type MivMode = (typeof MIV_MODES)[keyof typeof MIV_MODES];
+
+export const TOKENS = {
+  LEFT: 'LEFT',
+  RIGHT: 'RIGHT',
+  UP: 'UP',
+  DOWN: 'DOWN',
+  PAGE_UP: 'PAGE_UP',
+  PAGE_DOWN: 'PAGE_DOWN',
+  LINE_START: 'LINE_START',
+  LINE_END: 'LINE_END',
+  WORD_LEFT: 'WORD_LEFT',
+  WORD_RIGHT: 'WORD_RIGHT',
+  WORD_END_LEFT: 'WORD_END_LEFT',
+  WORD_END_RIGHT: 'WORD_END_RIGHT',
+  DELETE_CHAR: 'DELETE_CHAR',
+  DELETE_WORD: 'DELETE_WORD',
+  DELETE_LINE: 'DELETE_LINE',
+  DELETE_TO_LINE_END: 'DELETE_TO_LINE_END',
+  YANK_LINE: 'YANK_LINE',
+  YANK_WORD: 'YANK_WORD',
+  PASTE_AFTER: 'PASTE_AFTER',
+  PASTE_BEFORE: 'PASTE_BEFORE',
+  INSERT: 'INSERT',
+  INSERT_LINE_START: 'INSERT_LINE_START',
+  INSERT_LINE_END: 'INSERT_LINE_END',
+  OPEN_LINE_BELOW: 'OPEN_LINE_BELOW',
+  OPEN_LINE_ABOVE: 'OPEN_LINE_ABOVE',
+  UNDO: 'UNDO',
+  REPEAT: 'REPEAT',
+  REPEAT_ALIAS: 'REPEAT_ALIAS',
+  SEARCH_FORWARD: 'SEARCH_FORWARD',
+  SEARCH_BACKWARD: 'SEARCH_BACKWARD',
+  SEARCH_REGEX: 'SEARCH_REGEX',
+  SEARCH_NEXT: 'SEARCH_NEXT',
+  SEARCH_PREVIOUS: 'SEARCH_PREVIOUS',
+  GOTO_LINE: 'GOTO_LINE',
+  DOC_BOTTOM: 'DOC_BOTTOM',
+  SPACE: 'SPACE',
+  REPLACE_CHAR: 'REPLACE_CHAR',
+  REPLACE_WORD: 'REPLACE_WORD',
+  TOGGLE_CASE_CHAR: 'TOGGLE_CASE_CHAR',
+  TOGGLE_CASE_WORD: 'TOGGLE_CASE_WORD',
+  CHANGE_TO_LINE_END: 'CHANGE_TO_LINE_END',
+  CHANGE_LINE: 'CHANGE_LINE',
+  JUMP_BRACKET_MATCH: 'JUMP_BRACKET_MATCH',
+  JOIN_LINE_WITH_NEXT: 'JOIN_LINE_WITH_NEXT',
+  REPLACE_MATCHES: 'REPLACE_MATCHES',
+  SHOW_REGISTERS: 'SHOW_REGISTERS',
+  TEXT_OBJECT_AUTO: 'TEXT_OBJECT_AUTO',
+  TEXT_OBJECT_DOUBLE_QUOTE: 'TEXT_OBJECT_DOUBLE_QUOTE',
+  TEXT_OBJECT_SINGLE_QUOTE: 'TEXT_OBJECT_SINGLE_QUOTE',
+  TEXT_OBJECT_PAREN: 'TEXT_OBJECT_PAREN',
+  TEXT_OBJECT_BRACKET: 'TEXT_OBJECT_BRACKET',
+  TEXT_OBJECT_BRACE: 'TEXT_OBJECT_BRACE',
+  TEXT_OBJECT_ANGLE: 'TEXT_OBJECT_ANGLE'
+} as const;
+
+export type Token = (typeof TOKENS)[keyof typeof TOKENS];
 
 export const MIV_KEYS = {
   mode: {
@@ -139,76 +200,301 @@ export const REPEATABLE_BUILTIN_COMMANDS = new Set([
 
 export interface KeyBindingEntry {
   key: string;
-  sequenceValue: string;
+  token: Token | string;
 }
 
-/**
- * NAV-mode keys accepted by the MIV input engine.
- *
- * The `key` value reflects VS Code keybinding syntax, while `sequenceValue`
- * is the normalized token consumed by the parser.
- */
-export const NAV_KEY_BINDINGS = [
-  { key: MIV_KEYS.navigation.left, sequenceValue: MIV_KEYS.navigation.left },
-  { key: MIV_KEYS.navigation.right, sequenceValue: MIV_KEYS.navigation.right },
-  { key: MIV_KEYS.navigation.up, sequenceValue: MIV_KEYS.navigation.up },
-  { key: MIV_KEYS.navigation.down, sequenceValue: MIV_KEYS.navigation.down },
-  { key: 'shift+w', sequenceValue: MIV_KEYS.navigation.pageUp },
-  { key: 'shift+s', sequenceValue: MIV_KEYS.navigation.pageDown },
-  { key: 'shift+a', sequenceValue: MIV_KEYS.navigation.lineStart },
-  { key: 'shift+d', sequenceValue: MIV_KEYS.navigation.lineEnd },
-  { key: MIV_KEYS.navigation.wordLeft, sequenceValue: MIV_KEYS.navigation.wordLeft },
-  { key: MIV_KEYS.navigation.wordRight, sequenceValue: MIV_KEYS.navigation.wordRight },
-  { key: 'shift+q', sequenceValue: MIV_KEYS.navigation.wordEndLeft },
-  { key: 'shift+e', sequenceValue: MIV_KEYS.navigation.wordEndRight },
-  { key: MIV_KEYS.operators.delete, sequenceValue: MIV_KEYS.operators.delete },
-  { key: MIV_KEYS.commands.deleteLine, sequenceValue: MIV_KEYS.commands.deleteLine },
-  { key: 'shift+b', sequenceValue: MIV_KEYS.commands.deleteToLineEnd },
-  { key: 'shift+x', sequenceValue: MIV_KEYS.commands.deleteWord },
-  { key: 'shift+y', sequenceValue: MIV_KEYS.commands.yankWord },
-  { key: 'space', sequenceValue: ' ' },
-  { key: MIV_KEYS.operators.replace, sequenceValue: MIV_KEYS.operators.replace },
-  { key: 'shift+r', sequenceValue: MIV_KEYS.commands.replaceWord },
-  { key: '§', sequenceValue: MIV_KEYS.commands.toggleCaseChar },
-  { key: 'shift+§', sequenceValue: MIV_KEYS.commands.toggleCaseWord },
-  { key: MIV_KEYS.commands.repeat, sequenceValue: MIV_KEYS.commands.repeat },
-  { key: MIV_KEYS.commands.repeatAlias, sequenceValue: MIV_KEYS.commands.repeatAlias },
-  { key: MIV_KEYS.commands.insert, sequenceValue: MIV_KEYS.commands.insert },
-  { key: 'shift+i', sequenceValue: MIV_KEYS.commands.insertLineStart },
-  { key: MIV_KEYS.commands.insertLineEnd, sequenceValue: MIV_KEYS.commands.insertLineEnd },
-  { key: MIV_KEYS.commands.openLineBelow, sequenceValue: MIV_KEYS.commands.openLineBelow },
-  { key: 'shift+o', sequenceValue: MIV_KEYS.commands.openLineAbove },
-  { key: MIV_KEYS.commands.undo, sequenceValue: MIV_KEYS.commands.undo },
-  { key: MIV_KEYS.operators.yank, sequenceValue: MIV_KEYS.operators.yank },
-  { key: MIV_KEYS.operators.paste, sequenceValue: MIV_KEYS.operators.paste },
-  { key: 'shift+p', sequenceValue: MIV_KEYS.commands.pasteBefore },
-  { key: 'shift+5', sequenceValue: MIV_KEYS.commands.jumpBracketMatch },
-  { key: 'shift+7', sequenceValue: MIV_KEYS.commands.joinLineWithNext },
-  { key: '=', sequenceValue: MIV_KEYS.commands.replaceMatches },
-  { key: '-', sequenceValue: MIV_KEYS.commands.changeToLineEnd },
-  { key: 'shift+-', sequenceValue: MIV_KEYS.commands.changeLine },
-  { key: MIV_KEYS.textObjects.doubleQuote, sequenceValue: MIV_KEYS.textObjects.doubleQuote },
-  { key: MIV_KEYS.textObjects.singleQuote, sequenceValue: MIV_KEYS.textObjects.singleQuote },
-  { key: MIV_KEYS.textObjects.paren, sequenceValue: MIV_KEYS.textObjects.paren },
-  { key: MIV_KEYS.textObjects.bracket, sequenceValue: MIV_KEYS.textObjects.bracket },
-  { key: MIV_KEYS.textObjects.brace, sequenceValue: MIV_KEYS.textObjects.brace },
-  { key: MIV_KEYS.textObjects.angle, sequenceValue: MIV_KEYS.textObjects.angle },
-  { key: MIV_KEYS.textObjects.auto, sequenceValue: MIV_KEYS.textObjects.auto },
-  { key: MIV_KEYS.registers.viewer, sequenceValue: MIV_KEYS.registers.viewer },
-  { key: MIV_KEYS.commands.gotoLine, sequenceValue: MIV_KEYS.commands.gotoLine },
-  { key: 'shift+g', sequenceValue: MIV_KEYS.commands.docBottom },
-  ...DIGIT_KEYS.map((digit) => ({ key: digit, sequenceValue: digit })),
-  { key: MIV_KEYS.commands.searchForward, sequenceValue: MIV_KEYS.commands.searchForward },
-  { key: MIV_KEYS.commands.searchBackward, sequenceValue: MIV_KEYS.commands.searchBackward },
-  { key: MIV_KEYS.commands.searchRegex, sequenceValue: MIV_KEYS.commands.searchRegex },
-  { key: MIV_KEYS.commands.searchNext, sequenceValue: MIV_KEYS.commands.searchNext },
-  { key: 'shift+n', sequenceValue: MIV_KEYS.commands.searchPrevious }
- ] as const satisfies readonly KeyBindingEntry[];
+export function normalizeKey(key: string): string {
+  if (!key) {
+    return key;
+  }
 
-export const NAV_KEY_MAP = Object.fromEntries(
-  NAV_KEY_BINDINGS.map((entry) => [entry.key, entry.sequenceValue])
-) as Record<string, string>;
+  return key.toLowerCase();
+}
 
-export const NAV_INPUT_KEY_SET: ReadonlySet<string> = new Set(
-  NAV_KEY_BINDINGS.map((entry) => entry.sequenceValue)
+const CHAR_TO_PHYSICAL_KEY_ALIASES: Readonly<Record<string, string>> = {
+  '`': 'backquote',
+  '§': 'backquote',
+  '-': 'minus',
+  '_': 'shift+minus',
+  '=': 'equal',
+  '+': 'shift+equal',
+  '\\': 'backslash',
+  '|': 'shift+backslash',
+  '[': 'bracketleft',
+  '{': 'shift+bracketleft',
+  ']': 'bracketright',
+  '}': 'shift+bracketright',
+  ';': 'semicolon',
+  ':': 'shift+semicolon',
+  '\'': 'quote',
+  '"': 'shift+quote',
+  ',': 'comma',
+  '<': 'shift+comma',
+  '.': 'period',
+  '>': 'shift+period',
+  '/': 'slash',
+  '?': 'shift+slash',
+  '!': 'shift+digit1',
+  '%': 'shift+digit5',
+  '&': 'shift+digit7',
+  '(': 'shift+digit9'
+};
+
+const PHYSICAL_TO_CHAR_KEY_ALIASES: Readonly<Record<string, string[]>> = {
+  backquote: ['`', '§'],
+  minus: ['-'],
+  equal: ['='],
+  backslash: ['\\'],
+  bracketleft: ['['],
+  bracketright: [']'],
+  semicolon: [';'],
+  quote: ['\''],
+  comma: [','],
+  period: ['.'],
+  slash: ['/'],
+  'shift+minus': ['_'],
+  'shift+equal': ['+'],
+  'shift+backslash': ['|'],
+  'shift+bracketleft': ['{'],
+  'shift+bracketright': ['}'],
+  'shift+semicolon': [':'],
+  'shift+quote': ['"'],
+  'shift+comma': ['<'],
+  'shift+period': ['>'],
+  'shift+slash': ['?'],
+  'shift+digit1': ['!'],
+  'shift+digit5': ['%'],
+  'shift+digit7': ['&'],
+  'shift+digit9': ['(']
+};
+
+function getKeyAliases(key: string): string[] {
+  const normalized = normalizeKey(key);
+  if (!normalized) {
+    return [];
+  }
+
+  const aliases = new Set<string>([normalized]);
+  const shiftPrefix = 'shift+';
+  const base = normalized.startsWith(shiftPrefix) ? normalized.slice(shiftPrefix.length) : normalized;
+  const shifted = normalized.startsWith(shiftPrefix);
+
+  if (/^[a-z]$/.test(base)) {
+    aliases.add(`${shifted ? 'shift+' : ''}key${base}`);
+  } else if (/^[0-9]$/.test(base)) {
+    aliases.add(`${shifted ? 'shift+' : ''}digit${base}`);
+  }
+
+  const charAlias = CHAR_TO_PHYSICAL_KEY_ALIASES[normalized];
+  if (charAlias) {
+    aliases.add(charAlias);
+  }
+
+  const physicalAliases = PHYSICAL_TO_CHAR_KEY_ALIASES[normalized];
+  if (physicalAliases) {
+    for (const alias of physicalAliases) {
+      aliases.add(alias);
+    }
+  }
+
+  return [...aliases];
+}
+
+function buildNavKeyMap(entries: readonly KeyBindingEntry[]): Record<string, string> {
+  const pairs: Array<[string, string]> = [];
+  for (const entry of entries) {
+    for (const alias of getKeyAliases(entry.key)) {
+      pairs.push([alias, entry.token]);
+    }
+  }
+
+  return Object.fromEntries(pairs) as Record<string, string>;
+}
+
+export function loadKeymapFile(filePath: string): KeyBindingEntry[] | null {
+  try {
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    if (!Array.isArray(raw)) {
+      return null;
+    }
+
+    const result: KeyBindingEntry[] = [];
+    for (const entry of raw) {
+      if (!entry || typeof entry !== 'object') {
+        continue;
+      }
+
+      const key = (entry as { key?: unknown }).key;
+      const tokenName = (entry as { token?: unknown }).token;
+      if (typeof key !== 'string' || typeof tokenName !== 'string') {
+        continue;
+      }
+
+      if (Object.hasOwn(TOKENS, tokenName)) {
+        result.push({
+          key,
+          token: TOKENS[tokenName as keyof typeof TOKENS]
+        });
+        continue;
+      }
+
+      if (isDigitKey(tokenName)) {
+        result.push({ key, token: tokenName });
+        continue;
+      }
+
+      console.warn(`Invalid token in keymap: ${tokenName}`);
+    }
+
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+export function loadKeymapDirectory(dir: string): Record<string, KeyBindingEntry[]> {
+  const result: Record<string, KeyBindingEntry[]> = {};
+  if (!fs.existsSync(dir)) {
+    return result;
+  }
+
+  for (const file of fs.readdirSync(dir)) {
+    const fullPath = path.join(dir, file);
+    if (!file.toLowerCase().endsWith('.json')) {
+      continue;
+    }
+
+    const stat = fs.statSync(fullPath);
+    if (!stat.isFile()) {
+      continue;
+    }
+
+    const name = file.replace('.json', '');
+    const map = loadKeymapFile(fullPath);
+    if (map) {
+      result[name] = map;
+    }
+  }
+
+  return result;
+}
+
+function loadKeymapJson(name: string): KeyBindingEntry[] | null {
+  return loadKeymapFile(path.join(__dirname, '..', 'keymaps', `${name}.json`));
+}
+
+export const NAV_KEY_BINDINGS = loadKeymapJson('default') ?? [];
+
+const DEFAULT_KEYMAP_DIR = path.join(__dirname, '..', 'keymaps');
+const DEFAULT_USER_KEYMAP_DIR = path.join(DEFAULT_KEYMAP_DIR, 'user');
+
+export let KEYMAP_PROFILES: Record<string, readonly KeyBindingEntry[]> = {
+  ...loadKeymapDirectory(DEFAULT_KEYMAP_DIR),
+  ...loadKeymapDirectory(DEFAULT_USER_KEYMAP_DIR),
+  default: loadKeymapDirectory(DEFAULT_KEYMAP_DIR).default ?? NAV_KEY_BINDINGS
+};
+
+export type KeymapProfileName = keyof typeof KEYMAP_PROFILES;
+
+export let ACTIVE_KEYMAP_NAME = 'default' as KeymapProfileName | string;
+export let ACTIVE_KEYMAP: readonly KeyBindingEntry[] = KEYMAP_PROFILES[ACTIVE_KEYMAP_NAME];
+
+export let NAV_KEY_MAP = buildNavKeyMap(ACTIVE_KEYMAP);
+
+export let NAV_INPUT_KEY_SET: ReadonlySet<string> = new Set(
+  ACTIVE_KEYMAP.map((entry) => entry.token)
 );
+
+const TOKEN_SEQUENCE_MAP: Readonly<Record<string, string>> = {
+  [TOKENS.LEFT]: MIV_KEYS.navigation.left,
+  [TOKENS.RIGHT]: MIV_KEYS.navigation.right,
+  [TOKENS.UP]: MIV_KEYS.navigation.up,
+  [TOKENS.DOWN]: MIV_KEYS.navigation.down,
+  [TOKENS.PAGE_UP]: MIV_KEYS.navigation.pageUp,
+  [TOKENS.PAGE_DOWN]: MIV_KEYS.navigation.pageDown,
+  [TOKENS.LINE_START]: MIV_KEYS.navigation.lineStart,
+  [TOKENS.LINE_END]: MIV_KEYS.navigation.lineEnd,
+  [TOKENS.WORD_LEFT]: MIV_KEYS.navigation.wordLeft,
+  [TOKENS.WORD_RIGHT]: MIV_KEYS.navigation.wordRight,
+  [TOKENS.WORD_END_LEFT]: MIV_KEYS.navigation.wordEndLeft,
+  [TOKENS.WORD_END_RIGHT]: MIV_KEYS.navigation.wordEndRight,
+  [TOKENS.DELETE_CHAR]: MIV_KEYS.operators.delete,
+  [TOKENS.DELETE_WORD]: MIV_KEYS.commands.deleteWord,
+  [TOKENS.DELETE_LINE]: MIV_KEYS.commands.deleteLine,
+  [TOKENS.DELETE_TO_LINE_END]: MIV_KEYS.commands.deleteToLineEnd,
+  [TOKENS.YANK_LINE]: MIV_KEYS.operators.yank,
+  [TOKENS.YANK_WORD]: MIV_KEYS.commands.yankWord,
+  [TOKENS.PASTE_AFTER]: MIV_KEYS.operators.paste,
+  [TOKENS.PASTE_BEFORE]: MIV_KEYS.commands.pasteBefore,
+  [TOKENS.INSERT]: MIV_KEYS.commands.insert,
+  [TOKENS.INSERT_LINE_START]: MIV_KEYS.commands.insertLineStart,
+  [TOKENS.INSERT_LINE_END]: MIV_KEYS.commands.insertLineEnd,
+  [TOKENS.OPEN_LINE_BELOW]: MIV_KEYS.commands.openLineBelow,
+  [TOKENS.OPEN_LINE_ABOVE]: MIV_KEYS.commands.openLineAbove,
+  [TOKENS.UNDO]: MIV_KEYS.commands.undo,
+  [TOKENS.REPEAT]: MIV_KEYS.commands.repeat,
+  [TOKENS.REPEAT_ALIAS]: MIV_KEYS.commands.repeatAlias,
+  [TOKENS.SEARCH_FORWARD]: MIV_KEYS.commands.searchForward,
+  [TOKENS.SEARCH_BACKWARD]: MIV_KEYS.commands.searchBackward,
+  [TOKENS.SEARCH_REGEX]: MIV_KEYS.commands.searchRegex,
+  [TOKENS.SEARCH_NEXT]: MIV_KEYS.commands.searchNext,
+  [TOKENS.SEARCH_PREVIOUS]: MIV_KEYS.commands.searchPrevious,
+  [TOKENS.GOTO_LINE]: MIV_KEYS.commands.gotoLine,
+  [TOKENS.DOC_BOTTOM]: MIV_KEYS.commands.docBottom,
+  [TOKENS.SPACE]: ' ',
+  [TOKENS.REPLACE_CHAR]: MIV_KEYS.operators.replace,
+  [TOKENS.REPLACE_WORD]: MIV_KEYS.commands.replaceWord,
+  [TOKENS.TOGGLE_CASE_CHAR]: MIV_KEYS.commands.toggleCaseChar,
+  [TOKENS.TOGGLE_CASE_WORD]: MIV_KEYS.commands.toggleCaseWord,
+  [TOKENS.CHANGE_TO_LINE_END]: MIV_KEYS.commands.changeToLineEnd,
+  [TOKENS.CHANGE_LINE]: MIV_KEYS.commands.changeLine,
+  [TOKENS.JUMP_BRACKET_MATCH]: MIV_KEYS.commands.jumpBracketMatch,
+  [TOKENS.JOIN_LINE_WITH_NEXT]: MIV_KEYS.commands.joinLineWithNext,
+  [TOKENS.REPLACE_MATCHES]: MIV_KEYS.commands.replaceMatches,
+  [TOKENS.SHOW_REGISTERS]: MIV_KEYS.registers.viewer,
+  [TOKENS.TEXT_OBJECT_AUTO]: MIV_KEYS.textObjects.auto,
+  [TOKENS.TEXT_OBJECT_DOUBLE_QUOTE]: MIV_KEYS.textObjects.doubleQuote,
+  [TOKENS.TEXT_OBJECT_SINGLE_QUOTE]: MIV_KEYS.textObjects.singleQuote,
+  [TOKENS.TEXT_OBJECT_PAREN]: MIV_KEYS.textObjects.paren,
+  [TOKENS.TEXT_OBJECT_BRACKET]: MIV_KEYS.textObjects.bracket,
+  [TOKENS.TEXT_OBJECT_BRACE]: MIV_KEYS.textObjects.brace,
+  [TOKENS.TEXT_OBJECT_ANGLE]: MIV_KEYS.textObjects.angle
+};
+
+export function isToken(value: string): value is Token {
+  return Object.hasOwn(TOKEN_SEQUENCE_MAP, value);
+}
+
+export function getSequenceValueForToken(token: string): string {
+  return TOKEN_SEQUENCE_MAP[token] ?? token;
+}
+
+export function isKeymapProfileName(value: string): value is KeymapProfileName {
+  return Object.hasOwn(KEYMAP_PROFILES, value);
+}
+
+export function refreshKeymapProfiles(keymapDir = DEFAULT_KEYMAP_DIR, userKeymapDir = DEFAULT_USER_KEYMAP_DIR): void {
+  const builtinKeymaps = loadKeymapDirectory(keymapDir);
+  const userKeymaps = loadKeymapDirectory(userKeymapDir);
+
+  KEYMAP_PROFILES = {
+    ...builtinKeymaps,
+    ...userKeymaps,
+    default: builtinKeymaps.default ?? NAV_KEY_BINDINGS
+  };
+
+  setActiveKeymapName(ACTIVE_KEYMAP_NAME);
+}
+
+export function setActiveKeymapName(profileName: string): void {
+  if (!KEYMAP_PROFILES[profileName]) {
+    profileName = 'default';
+  }
+
+  ACTIVE_KEYMAP_NAME = profileName;
+  ACTIVE_KEYMAP = KEYMAP_PROFILES[ACTIVE_KEYMAP_NAME];
+  NAV_KEY_MAP = buildNavKeyMap(ACTIVE_KEYMAP);
+  NAV_INPUT_KEY_SET = new Set(
+    ACTIVE_KEYMAP.map((entry) => entry.token)
+  );
+}

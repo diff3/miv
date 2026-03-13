@@ -5,7 +5,7 @@
  * the dispatcher. It also identifies partial sequences that require time-based
  * fallback behavior.
  */
-import { MIV_KEYS, isDigitKey } from './config';
+import { MIV_KEYS, getSequenceValueForToken, isDigitKey, isToken } from './config';
 
 export type ParsedAction =
   | 'cursorLeft'
@@ -287,7 +287,8 @@ const TEXT_OBJECT_COMMAND_KEYS = new Set<string>([
  * Returns:
  *   ParseResult describing whether the sequence is complete, partial, or invalid.
  */
-export function parseInput(buffer: string): ParseResult {
+export function parseInput(input: string | readonly string[]): ParseResult {
+  const buffer = normalizeInputBuffer(input);
   if (buffer.length === 0) {
     return INVALID_RESULT;
   }
@@ -333,6 +334,18 @@ export function parseInput(buffer: string): ParseResult {
   }
 
   return parseCommandSequence(buffer);
+}
+
+function normalizeInputBuffer(input: string | readonly string[]): string {
+  if (typeof input !== 'string') {
+    return input.map((value) => getSequenceValueForToken(value)).join('');
+  }
+
+  if (isToken(input)) {
+    return getSequenceValueForToken(input);
+  }
+
+  return input;
 }
 
 function parseReplaceRuleSequence(buffer: string): ParseResult | undefined {
