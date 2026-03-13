@@ -8,7 +8,7 @@ const ts = require('typescript');
 const ROOT_DIR = path.resolve(__dirname, '..');
 const CONFIG_PATH = path.join(ROOT_DIR, 'src', 'config.ts');
 const PACKAGE_JSON_PATH = path.join(ROOT_DIR, 'package.json');
-const NAV_WHEN_CLAUSE = "editorTextFocus && miv.mode == 'NAV'";
+const NAV_WHEN_CLAUSE = "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending";
 const LEGACY_NAV_COMMANDS = new Set([
   'miv.cursorLeft',
   'miv.cursorRight',
@@ -146,12 +146,19 @@ function loadActiveKeymap() {
 }
 
 function buildGeneratedKeybindings(navKeyBindings) {
-  return navKeyBindings.map(({ key, token }) => ({
-    key: toVscodeKeybindingKey(key),
-    command: 'miv.handleKey',
-    args: key.toLowerCase(),
-    when: NAV_WHEN_CLAUSE
-  }));
+  return [
+    ...navKeyBindings.map(({ key, token }) => ({
+      key: toVscodeKeybindingKey(key),
+      command: 'miv.handleKey',
+      args: key.toLowerCase(),
+      when: NAV_WHEN_CLAUSE
+    })),
+    {
+      key: 'backspace',
+      command: 'miv.searchBackspace',
+      when: "editorTextFocus && (miv.searchActive || miv.replaceRuleInputActive)"
+    }
+  ];
 }
 
 function updatePackageJson(generatedKeybindings) {
@@ -169,10 +176,14 @@ function updatePackageJson(generatedKeybindings) {
       return true;
     }
 
+    const isNavHandleKeybinding =
+      binding.command === 'miv.handleKey'
+      && typeof binding.when === 'string'
+      && binding.when.includes("editorTextFocus && miv.mode == 'NAV'");
+
     return !(
-      binding.when === NAV_WHEN_CLAUSE
-      && (
-        binding.command === 'miv.handleKey'
+      (
+        isNavHandleKeybinding
         || binding.command === 'miv.searchBackspace'
         || (
           typeof binding.key === 'string'

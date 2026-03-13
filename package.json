@@ -2,7 +2,7 @@
   "name": "miv",
   "displayName": "MIV",
   "description": "Lightweight modal editing for VS Code inspired by Vim and designed for IDE workflows.",
-  "version": "1.0.4",
+  "version": "1.0.6",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -271,379 +271,384 @@
         "key": "[KeyA]",
         "command": "miv.handleKey",
         "args": "keya",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[KeyD]",
         "command": "miv.handleKey",
         "args": "keyd",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[KeyW]",
         "command": "miv.handleKey",
         "args": "keyw",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[KeyS]",
         "command": "miv.handleKey",
         "args": "keys",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "shift+[KeyW]",
         "command": "miv.handleKey",
         "args": "shift+keyw",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "shift+[KeyS]",
         "command": "miv.handleKey",
         "args": "shift+keys",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "shift+[KeyA]",
         "command": "miv.handleKey",
         "args": "shift+keya",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "shift+[KeyD]",
         "command": "miv.handleKey",
         "args": "shift+keyd",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[KeyQ]",
         "command": "miv.handleKey",
         "args": "keyq",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[KeyE]",
         "command": "miv.handleKey",
         "args": "keye",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "shift+[KeyQ]",
         "command": "miv.handleKey",
         "args": "shift+keyq",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "shift+[KeyE]",
         "command": "miv.handleKey",
         "args": "shift+keye",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[KeyX]",
         "command": "miv.handleKey",
         "args": "keyx",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[KeyB]",
         "command": "miv.handleKey",
         "args": "keyb",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "shift+[KeyB]",
         "command": "miv.handleKey",
         "args": "shift+keyb",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "shift+[KeyX]",
         "command": "miv.handleKey",
         "args": "shift+keyx",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "shift+[KeyY]",
         "command": "miv.handleKey",
         "args": "shift+keyy",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "space",
         "command": "miv.handleKey",
         "args": "space",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[KeyR]",
         "command": "miv.handleKey",
         "args": "keyr",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "shift+[KeyR]",
         "command": "miv.handleKey",
         "args": "shift+keyr",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[Backquote]",
         "command": "miv.handleKey",
         "args": "backquote",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "shift+[Backquote]",
         "command": "miv.handleKey",
         "args": "shift+backquote",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[KeyC]",
         "command": "miv.handleKey",
         "args": "keyc",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": ".",
         "command": "miv.handleKey",
         "args": ".",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[KeyI]",
         "command": "miv.handleKey",
         "args": "keyi",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "shift+[KeyI]",
         "command": "miv.handleKey",
         "args": "shift+keyi",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[KeyK]",
         "command": "miv.handleKey",
         "args": "keyk",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[KeyO]",
         "command": "miv.handleKey",
         "args": "keyo",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "shift+[KeyO]",
         "command": "miv.handleKey",
         "args": "shift+keyo",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[KeyU]",
         "command": "miv.handleKey",
         "args": "keyu",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[KeyY]",
         "command": "miv.handleKey",
         "args": "keyy",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[KeyP]",
         "command": "miv.handleKey",
         "args": "keyp",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "shift+[KeyP]",
         "command": "miv.handleKey",
         "args": "shift+keyp",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "shift+[Digit5]",
         "command": "miv.handleKey",
         "args": "shift+digit5",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "shift+[KeyJ]",
         "command": "miv.handleKey",
         "args": "shift+keyj",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[Equal]",
         "command": "miv.handleKey",
         "args": "equal",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[Minus]",
         "command": "miv.handleKey",
         "args": "minus",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "shift+[Minus]",
         "command": "miv.handleKey",
         "args": "shift+minus",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "\"",
         "command": "miv.handleKey",
         "args": "\"",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "'",
         "command": "miv.handleKey",
         "args": "'",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "(",
         "command": "miv.handleKey",
         "args": "(",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[",
         "command": "miv.handleKey",
         "args": "[",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "{",
         "command": "miv.handleKey",
         "args": "{",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "<",
         "command": "miv.handleKey",
         "args": "<",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "!",
         "command": "miv.handleKey",
         "args": "!",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[KeyV]",
         "command": "miv.handleKey",
         "args": "keyv",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[KeyG]",
         "command": "miv.handleKey",
         "args": "keyg",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "shift+[KeyG]",
         "command": "miv.handleKey",
         "args": "shift+keyg",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[Digit0]",
         "command": "miv.handleKey",
         "args": "digit0",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[Digit1]",
         "command": "miv.handleKey",
         "args": "digit1",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[Digit2]",
         "command": "miv.handleKey",
         "args": "digit2",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[Digit3]",
         "command": "miv.handleKey",
         "args": "digit3",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[Digit4]",
         "command": "miv.handleKey",
         "args": "digit4",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[Digit5]",
         "command": "miv.handleKey",
         "args": "digit5",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[Digit6]",
         "command": "miv.handleKey",
         "args": "digit6",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[Digit7]",
         "command": "miv.handleKey",
         "args": "digit7",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[Digit8]",
         "command": "miv.handleKey",
         "args": "digit8",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[Digit9]",
         "command": "miv.handleKey",
         "args": "digit9",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "/",
         "command": "miv.handleKey",
         "args": "/",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "\\",
         "command": "miv.handleKey",
         "args": "\\",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[Comma]",
         "command": "miv.handleKey",
         "args": "comma",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "[KeyN]",
         "command": "miv.handleKey",
         "args": "keyn",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
       },
       {
         "key": "shift+[KeyN]",
         "command": "miv.handleKey",
         "args": "shift+keyn",
-        "when": "editorTextFocus && miv.mode == 'NAV'"
+        "when": "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending"
+      },
+      {
+        "key": "backspace",
+        "command": "miv.searchBackspace",
+        "when": "editorTextFocus && (miv.searchActive || miv.replaceRuleInputActive)"
       },
       {
         "key": "alt+a",

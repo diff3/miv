@@ -27,17 +27,29 @@ export interface ReplaceRule {
   isRegex: boolean;
 }
 
+export const RAW_INPUT_MODES = {
+  NONE: 'NONE',
+  SEARCH: 'SEARCH',
+  REPLACE_RULE: 'REPLACE_RULE',
+  REPLACE_CHAR: 'REPLACE_CHAR'
+} as const;
+
+export type RawInputMode = (typeof RAW_INPUT_MODES)[keyof typeof RAW_INPUT_MODES];
+
 export interface MivState {
   mode: MivMode;
   lastCommand?: ParsedCommand;
   anchorPosition?: AnchorPosition;
   registers: Record<string, RegisterValue>;
   registerViewerActive: boolean;
+  rawInputMode: RawInputMode;
   replaceCharPending: boolean;
   replaceRule?: ReplaceRule;
   replaceRuleInputActive: boolean;
   replaceRuleBuffer: string;
   search?: SearchState;
+  searchActive: boolean;
+  searchBuffer: string;
   searchInputActive: boolean;
   searchHighlightEnabled: boolean;
   searchHighlightVisible: boolean;
@@ -71,11 +83,14 @@ export function createInitialState(): MivState {
     lastCommand: undefined,
     anchorPosition: undefined,
     registerViewerActive: false,
+    rawInputMode: RAW_INPUT_MODES.NONE,
     replaceCharPending: false,
     replaceRule: undefined,
     replaceRuleInputActive: false,
     replaceRuleBuffer: '',
     search: undefined,
+    searchActive: false,
+    searchBuffer: '',
     searchInputActive: false,
     searchHighlightEnabled: true,
     searchHighlightVisible: true,
@@ -131,6 +146,21 @@ export function setNavMode(state: MivState): void {
  */
 export function setInsertMode(state: MivState): void {
   setMode(state, MIV_MODES.INSERT);
+}
+
+/**
+ * Switch the active raw-input submode while keeping legacy booleans in sync.
+ *
+ * Parameters:
+ *   state - Mutable MIV state object.
+ *   mode - Raw input mode to activate.
+ */
+export function setRawInputMode(state: MivState, mode: RawInputMode): void {
+  state.rawInputMode = mode;
+  state.searchActive = mode === RAW_INPUT_MODES.SEARCH;
+  state.searchInputActive = mode === RAW_INPUT_MODES.SEARCH;
+  state.replaceRuleInputActive = mode === RAW_INPUT_MODES.REPLACE_RULE;
+  state.replaceCharPending = mode === RAW_INPUT_MODES.REPLACE_CHAR;
 }
 
 /**
