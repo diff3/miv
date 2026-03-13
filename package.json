@@ -9,6 +9,9 @@
     "url": "https://github.com/diff3/miv"
   },
   "homepage": "https://github.com/diff3/miv",
+  "bugs": {
+    "url": "https://github.com/diff3/miv/issues"
+  },
   "engines": {
     "vscode": "^1.110.0"
   },

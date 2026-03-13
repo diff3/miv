@@ -1,18 +1,22 @@
-# MIV - Modern Improved Vi
+# MIV – Modern Improved Vi
 
-MIV is a lightweight modal editing extension for VS Code inspired by Vim but designed for IDE workflows.
+[![Repository](https://img.shields.io/badge/GitHub-diff3%2Fmiv-24292f?logo=github)](https://github.com/diff3/miv)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Support](https://img.shields.io/badge/Ko--fi-Support-ff5f5f?logo=ko-fi&logoColor=white)](https://ko-fi.com/diff3)
 
-## Enable MIV
+MIV is a lightweight modal editing extension for VS Code inspired by Vim but designed for modern IDE workflows.
 
-Press:
+It focuses on:
 
-`ESC`
+- simple modal editing
+- fast navigation
+- predictable commands
+- minimal configuration
 
-to enter NAV mode.
+## Quick Start
+Press `ESC` to enter **NAV mode**.
 
-## Basic Example
-
-Navigation:
+Basic navigation:
 
 - `a` left
 - `d` right
@@ -35,18 +39,14 @@ Registers:
 - `2p` paste from register `2`
 - `v` show register contents
 
-## Full Keymap
-
-For the complete command reference see:
-
-[`doc/KEYMAP.md`](doc/KEYMAP.md)
+## Command Reference
+The full command reference is available in [`doc/KEYMAP.md`](doc/KEYMAP.md).
 
 ## Repository
 
 https://github.com/diff3/miv
 
 ## Support Development
-
 If you enjoy using MIV and want to support development you can leave a tip here:
 
 https://ko-fi.com/diff3
