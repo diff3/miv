@@ -1,12 +1,14 @@
 {
   "name": "miv",
-  "displayName": "miv",
-  "description": "Modern Improved Vi",
+  "displayName": "MIV",
+  "description": "Lightweight modal editing for VS Code inspired by Vim and designed for IDE workflows.",
   "version": "0.0.1",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/diff3/miv"
   },
+  "homepage": "https://github.com/diff3/miv",
   "engines": {
     "vscode": "^1.110.0"
   },
