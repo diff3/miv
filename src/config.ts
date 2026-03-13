@@ -106,6 +106,9 @@ export const MIV_KEYS = {
     openLineAbove: 'O',
     undo: 'u',
     searchForward: '/',
+    searchBackward: '\\',
+    searchNext: 'n',
+    searchPrevious: 'N',
     docBottom: 'G'
   },
   registers: {
@@ -187,7 +190,10 @@ export const NAV_KEY_BINDINGS = [
   { key: MIV_KEYS.commands.gotoLine, sequenceValue: MIV_KEYS.commands.gotoLine },
   { key: 'shift+g', sequenceValue: MIV_KEYS.commands.docBottom },
   ...DIGIT_KEYS.map((digit) => ({ key: digit, sequenceValue: digit })),
-  { key: MIV_KEYS.commands.searchForward, sequenceValue: MIV_KEYS.commands.searchForward }
+  { key: MIV_KEYS.commands.searchForward, sequenceValue: MIV_KEYS.commands.searchForward },
+  { key: MIV_KEYS.commands.searchBackward, sequenceValue: MIV_KEYS.commands.searchBackward },
+  { key: MIV_KEYS.commands.searchNext, sequenceValue: MIV_KEYS.commands.searchNext },
+  { key: 'shift+n', sequenceValue: MIV_KEYS.commands.searchPrevious }
  ] as const satisfies readonly KeyBindingEntry[];
 
 export const NAV_KEY_MAP = Object.fromEntries(

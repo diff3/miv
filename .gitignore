@@ -1,5 +1,28 @@
-out
-dist
-node_modules
-.vscode-test/
+# Node
+node_modules/
+
+# Build output
+out/
+dist/
 *.vsix
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# VSCode test artifacts
+.vscode-test/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local editor settings
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+doc/checklist.*
+doc/todo.md

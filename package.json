@@ -58,6 +58,10 @@
       {
         "command": "miv.showCommandStats",
         "title": "miv: Show Command Stats"
+      },
+      {
+        "command": "miv.searchBackspace",
+        "title": "miv: Search Backspace"
       }
     ],
     "keybindings": [
@@ -251,6 +255,29 @@
         "key": "/",
         "command": "miv.handleKey",
         "args": "/",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "\\",
+        "command": "miv.handleKey",
+        "args": "\\",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "n",
+        "command": "miv.handleKey",
+        "args": "n",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "shift+n",
+        "command": "miv.handleKey",
+        "args": "N",
+        "when": "editorTextFocus && miv.mode == 'NAV'"
+      },
+      {
+        "key": "backspace",
+        "command": "miv.searchBackspace",
         "when": "editorTextFocus && miv.mode == 'NAV'"
       },
       {

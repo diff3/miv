@@ -47,6 +47,9 @@ export type ParsedAction =
   | 'yankLines'
   | 'repeatLastCommand'
   | 'forwardSearch'
+  | 'backwardSearch'
+  | 'searchNext'
+  | 'searchPrevious'
   | 'gotoLine'
   | 'builtinEdit'
   | 'textObjectOperation';
@@ -138,10 +141,6 @@ const SINGLE_KEY_COMMANDS: Record<string, ParsedCommand> = {
     action: 'deleteCharRight',
     vscodeCommand: 'deleteRight'
   },
-  [MIV_KEYS.operators.replace]: {
-    sequence: MIV_KEYS.operators.replace,
-    action: 'replaceChar'
-  },
   [MIV_KEYS.commands.deleteWord]: {
     sequence: MIV_KEYS.commands.deleteWord,
     action: 'deleteWordRight',
@@ -208,8 +207,19 @@ const SINGLE_KEY_COMMANDS: Record<string, ParsedCommand> = {
   },
   [MIV_KEYS.commands.searchForward]: {
     sequence: MIV_KEYS.commands.searchForward,
-    action: 'forwardSearch',
-    vscodeCommand: 'actions.find'
+    action: 'forwardSearch'
+  },
+  [MIV_KEYS.commands.searchBackward]: {
+    sequence: MIV_KEYS.commands.searchBackward,
+    action: 'backwardSearch'
+  },
+  [MIV_KEYS.commands.searchNext]: {
+    sequence: MIV_KEYS.commands.searchNext,
+    action: 'searchNext'
+  },
+  [MIV_KEYS.commands.searchPrevious]: {
+    sequence: MIV_KEYS.commands.searchPrevious,
+    action: 'searchPrevious'
   },
   [MIV_KEYS.commands.docBottom]: {
     sequence: MIV_KEYS.commands.docBottom,
@@ -227,6 +237,7 @@ const INVALID_RESULT: ParseResult = { status: 'invalid' };
 type SequenceHandler = (buffer: string) => ParseResult;
 
 const PREFIX_SEQUENCE_HANDLERS: Record<string, SequenceHandler> = {
+  [MIV_KEYS.operators.replace]: parseReplaceCharSequence,
   [MIV_KEYS.operators.yank]: parseOperatorMotionSequence
 };
 
@@ -720,6 +731,25 @@ function parseOperatorMotionSequence(buffer: string): ParseResult {
       sequence: buffer,
       action: 'operatorMotion',
       args: [operator, motionKey]
+    }
+  };
+}
+
+function parseReplaceCharSequence(buffer: string): ParseResult {
+  if (buffer.length === 1) {
+    return { status: 'partial' };
+  }
+
+  if (buffer.length !== 2) {
+    return INVALID_RESULT;
+  }
+
+  return {
+    status: 'complete',
+    command: {
+      sequence: buffer,
+      action: 'replaceChar',
+      args: [buffer[1]]
     }
   };
 }

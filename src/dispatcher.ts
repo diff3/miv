@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import type { ParsedAction, ParsedCommand } from './parser';
 import { getMotionVscodeCommand } from './parser';
 import { MIV_KEYS } from './config';
-import { getRegister, setInsertMode, setLastCommand, storeRegister, type Register, type MivMode, type MivState } from './state';
+import { getRegister, setInsertMode, setLastCommand, storeRegister, type RegisterValue, type MivMode, type MivState } from './state';
 
 const commandUsageCounts: Record<string, number> = Object.create(null) as Record<string, number>;
 const sequenceUsageCounts: Record<string, number> = Object.create(null) as Record<string, number>;
@@ -90,16 +90,10 @@ const EDIT_ACTION_HANDLERS: ActionHandlerMap = {
     await executeDeleteToLineEnd(command, state, hooks);
   },
   replaceWord: async ({ state, hooks }) => {
-    await vscode.commands.executeCommand('deleteWordRight');
-    setInsertMode(state);
-    hooks?.onStatusMessage?.('replaced word');
-    await hooks?.onModeChanged?.(state.mode);
+    await executeReplaceWord(state, hooks);
   },
-  replaceChar: async ({ state, hooks }) => {
-    await vscode.commands.executeCommand('deleteRight');
-    setInsertMode(state);
-    hooks?.onStatusMessage?.('replaced character');
-    await hooks?.onModeChanged?.(state.mode);
+  replaceChar: async ({ command }) => {
+    await executeReplaceChar(command);
   },
   operatorMotion: async ({ command, state, hooks }) => {
     await executeOperatorMotion(command, state, hooks);
@@ -127,7 +121,7 @@ const REGISTER_ACTION_HANDLERS: ActionHandlerMap = {
       return;
     }
 
-    storeRegister(state, registerKey, { text: clipboardValue, linewise: isLinewiseText(clipboardValue) });
+    storeRegister(state, registerKey, clipboardValue, getRegisterTypeFromText(clipboardValue));
     hooks?.onStatusMessage?.(`stored clipboard in register ${registerKey}`);
   },
   pasteRegister: async ({ command, state, hooks }) => {
@@ -151,7 +145,7 @@ const REGISTER_ACTION_HANDLERS: ActionHandlerMap = {
       return;
     }
 
-    storeRegister(state, '9', { text: clipboardValue, linewise: isLinewiseText(clipboardValue) });
+    storeRegister(state, '9', clipboardValue, getRegisterTypeFromText(clipboardValue));
     hooks?.onStatusMessage?.('stored paste in register 9');
   },
   pasteAfter: async ({ command, state, hooks }) => {
@@ -184,10 +178,21 @@ const REGISTER_ACTION_HANDLERS: ActionHandlerMap = {
       return;
     }
 
+    const selection = editor.selection;
     const document = editor.document;
     const startLine = editor.selection.active.line;
     const count = normalizePositiveInt(command.args?.[0], 1);
     const targetRegister = String(command.args?.[1] ?? '0');
+    if (!commandHasExplicitCount(command) && !selection.isEmpty) {
+      const range = new vscode.Range(selection.start, selection.end);
+      const yankedText = document.getText(range);
+      await vscode.env.clipboard.writeText(yankedText);
+      storeRegister(state, targetRegister, yankedText, 'charwise');
+      hooks?.onYank?.(editor, range);
+      hooks?.onStatusMessage?.(`stored yank in register ${targetRegister}`);
+      return;
+    }
+
     const endLine = Math.min(document.lineCount - 1, startLine + count - 1);
     const range = new vscode.Range(
       document.lineAt(startLine).range.start,
@@ -195,7 +200,7 @@ const REGISTER_ACTION_HANDLERS: ActionHandlerMap = {
     );
     const yankedText = document.getText(range);
     await vscode.env.clipboard.writeText(yankedText);
-    storeRegister(state, targetRegister, { text: yankedText, linewise: true });
+    storeRegister(state, targetRegister, yankedText, 'linewise');
     hooks?.onYank?.(editor, range);
     hooks?.onStatusMessage?.(`stored yank in register ${targetRegister}`);
   },
@@ -221,7 +226,7 @@ const REGISTER_ACTION_HANDLERS: ActionHandlerMap = {
     const range = new vscode.Range(selection.start, selection.end);
     const yankedText = editor.document.getText(range);
     await vscode.env.clipboard.writeText(yankedText);
-    storeRegister(state, targetRegister, { text: yankedText, linewise: false });
+    storeRegister(state, targetRegister, yankedText, 'charwise');
     hooks?.onYank?.(editor, range);
     hooks?.onStatusMessage?.(`stored yank in register ${targetRegister}`);
     editor.selection = new vscode.Selection(start, start);
@@ -377,7 +382,7 @@ async function executeOperatorMotion(command: ParsedCommand, state: MivState, ho
 
   if (operator === MIV_KEYS.operators.yank) {
     await vscode.env.clipboard.writeText(selectedText);
-    storeRegister(state, targetRegister, { text: selectedText, linewise: false });
+    storeRegister(state, targetRegister, selectedText, 'charwise');
     hooks?.onYank?.(editor, range);
     hooks?.onStatusMessage?.(`stored yank in register ${targetRegister}`);
     editor.selection = new vscode.Selection(start, start);
@@ -403,19 +408,23 @@ function incrementCounter(counter: Record<string, number>, key: string): void {
   counter[key] = (counter[key] ?? 0) + 1;
 }
 
-type PasteDirection = 'after' | 'before';
-
-function isLinewiseText(value: string): boolean {
-  return value.endsWith('\n');
+function commandHasExplicitCount(command: ParsedCommand): boolean {
+  return /^[0-9]/.test(command.sequence);
 }
 
-async function pasteRegisterValue(value: Register, direction: PasteDirection): Promise<void> {
+type PasteDirection = 'after' | 'before';
+
+function getRegisterTypeFromText(value: string): 'charwise' | 'linewise' {
+  return value.endsWith('\n') ? 'linewise' : 'charwise';
+}
+
+async function pasteRegisterValue(value: RegisterValue, direction: PasteDirection): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor || value.text.length === 0) {
     return;
   }
 
-  if (value.linewise) {
+  if (value.type === 'linewise') {
     await pasteLinewise(editor, value.text, direction);
     return;
   }
@@ -478,17 +487,32 @@ const TEXT_OBJECT_PAIRS: Record<string, DelimiterPair> = {
 };
 
 async function executeDeleteCharRight(command: ParsedCommand, state: MivState, hooks?: DispatchHooks): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    return;
+  }
+
   const count = normalizePositiveInt(command.args?.[0], 1);
   const targetRegister = command.args?.[1] !== undefined ? String(command.args?.[1]) : undefined;
-  if (!targetRegister) {
-    for (let i = 0; i < count; i += 1) {
-      await vscode.commands.executeCommand('deleteRight');
+  if (!commandHasExplicitCount(command) && !editor.selection.isEmpty) {
+    const range = new vscode.Range(editor.selection.start, editor.selection.end);
+    const deletedText = editor.document.getText(range);
+    await editor.edit((editBuilder) => {
+      editBuilder.delete(range);
+    });
+    const caret = range.start;
+    editor.selection = new vscode.Selection(caret, caret);
+    if (targetRegister) {
+      storeRegister(state, targetRegister, deletedText, 'charwise');
+      hooks?.onStatusMessage?.(`stored delete in register ${targetRegister}`);
     }
     return;
   }
 
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) {
+  if (!targetRegister) {
+    for (let i = 0; i < count; i += 1) {
+      await vscode.commands.executeCommand('deleteRight');
+    }
     return;
   }
 
@@ -505,7 +529,7 @@ async function executeDeleteCharRight(command: ParsedCommand, state: MivState, h
   const deletedText = document.getText(range);
   editor.selection = new vscode.Selection(start, end);
   await vscode.commands.executeCommand('editor.action.clipboardCutAction');
-  storeRegister(state, targetRegister, { text: deletedText, linewise: false });
+  storeRegister(state, targetRegister, deletedText, 'charwise');
   hooks?.onStatusMessage?.(`stored delete in register ${targetRegister}`);
 }
 
@@ -538,7 +562,7 @@ async function executeDeleteWordRight(command: ParsedCommand, state: MivState, h
   const range = new vscode.Range(selection.start, selection.end);
   const deletedText = editor.document.getText(range);
   await vscode.commands.executeCommand('editor.action.clipboardCutAction');
-  storeRegister(state, targetRegister, { text: deletedText, linewise: false });
+  storeRegister(state, targetRegister, deletedText, 'charwise');
   hooks?.onStatusMessage?.(`stored delete in register ${targetRegister}`);
 }
 
@@ -569,8 +593,80 @@ async function executeDeleteToLineEnd(command: ParsedCommand, state: MivState, h
   await editor.edit((editBuilder) => {
     editBuilder.delete(range);
   });
-  storeRegister(state, targetRegister, { text: deletedText, linewise: false });
+  storeRegister(state, targetRegister, deletedText, 'charwise');
   hooks?.onStatusMessage?.(`stored delete in register ${targetRegister}`);
+}
+
+async function executeReplaceChar(command: ParsedCommand): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    return;
+  }
+
+  const replacement = String(command.args?.[0] ?? '');
+  if (replacement.length !== 1) {
+    return;
+  }
+
+  const position = editor.selection.active;
+  const line = editor.document.lineAt(position.line);
+  if (position.character >= line.text.length) {
+    return;
+  }
+
+  const range = new vscode.Range(position, position.translate(0, 1));
+  await editor.edit((editBuilder) => {
+    editBuilder.replace(range, replacement);
+  });
+
+  editor.selection = new vscode.Selection(position, position);
+}
+
+async function executeReplaceWord(state: MivState, hooks?: DispatchHooks): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    return;
+  }
+
+  const position = editor.selection.active;
+  const line = editor.document.lineAt(position.line).text;
+  let start = position.character;
+  let end = position.character;
+
+  while (start < line.length && isReplaceWordDelimiter(line[start])) {
+    start += 1;
+  }
+  end = start;
+
+  while (start > 0 && !isReplaceWordDelimiter(line[start - 1])) {
+    start -= 1;
+  }
+
+  while (end < line.length && !isReplaceWordDelimiter(line[end])) {
+    end += 1;
+  }
+
+  const startPosition = new vscode.Position(position.line, start);
+  if (start === end) {
+    editor.selection = new vscode.Selection(startPosition, startPosition);
+    setInsertMode(state);
+    await hooks?.onModeChanged?.(state.mode);
+    return;
+  }
+
+  const endPosition = new vscode.Position(position.line, end);
+  const range = new vscode.Range(startPosition, endPosition);
+  await editor.edit((editBuilder) => {
+    editBuilder.delete(range);
+  });
+
+  editor.selection = new vscode.Selection(startPosition, startPosition);
+  setInsertMode(state);
+  await hooks?.onModeChanged?.(state.mode);
+}
+
+function isReplaceWordDelimiter(char: string): boolean {
+  return /[\s,.;:()[\]{}]/.test(char);
 }
 
 async function executeChangeToLineEnd(state: MivState, hooks?: DispatchHooks): Promise<void> {
@@ -630,7 +726,7 @@ async function executeTextObjectOperation(command: ParsedCommand, state: MivStat
 
   if (operationKey === MIV_KEYS.operators.yank) {
     await vscode.env.clipboard.writeText(selectedText);
-    storeRegister(state, registerKey, { text: selectedText, linewise: false });
+    storeRegister(state, registerKey, selectedText, 'charwise');
     hooks?.onYank?.(editor, range);
     hooks?.onStatusMessage?.(`stored yank in register ${registerKey}`);
     return;
@@ -640,7 +736,7 @@ async function executeTextObjectOperation(command: ParsedCommand, state: MivStat
     await editor.edit((editBuilder) => {
       editBuilder.delete(range);
     });
-    storeRegister(state, registerKey, { text: selectedText, linewise: false });
+    storeRegister(state, registerKey, selectedText, 'charwise');
     hooks?.onStatusMessage?.(`stored delete in register ${registerKey}`);
     return;
   }

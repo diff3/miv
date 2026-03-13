@@ -96,16 +96,86 @@ export function activate(context: vscode.ExtensionContext): void {
     await syncModeFeedback();
   };
 
+  const getSearchPreviewText = (): string => {
+    if (!state.search) {
+      return undefined as never;
+    }
+
+    return `${state.search.direction === 'forward' ? '/' : '\\'}${state.search.query}`;
+  };
+
+  const startSearchInput = (direction: 'forward' | 'backward'): void => {
+    resetInputState();
+    state.searchInputActive = true;
+    state.search = { query: '', direction };
+    ui.showCommandPreview(getSearchPreviewText());
+  };
+
+  const cancelSearchInput = (): void => {
+    state.searchInputActive = false;
+    state.search = undefined;
+    ui.showCommandPreview(undefined);
+  };
+
+  const updateSearchPreview = (): void => {
+    ui.showCommandPreview(state.searchInputActive ? getSearchPreviewText() : undefined);
+  };
+
+  const executeNativeSearch = async (query: string, direction: 'forward' | 'backward'): Promise<boolean> => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || query.length === 0) {
+      return false;
+    }
+
+    const text = editor.document.getText();
+    const offset = editor.document.offsetAt(editor.selection.active);
+    const matchOffset = direction === 'forward'
+      ? text.indexOf(query, offset + 1)
+      : text.lastIndexOf(query, offset - 1);
+
+    if (matchOffset < 0) {
+      ui.showMessage(`not found: ${query}`);
+      return false;
+    }
+
+    const position = editor.document.positionAt(matchOffset);
+    const selection = new vscode.Selection(position, position);
+    editor.selection = selection;
+    editor.revealRange(new vscode.Range(position, position));
+    state.lastSearch = query;
+    state.lastSearchDirection = direction;
+    state.search = { query, direction };
+    return true;
+  };
+
+  const commitSearchInput = async (): Promise<void> => {
+    if (!state.search) {
+      cancelSearchInput();
+      return;
+    }
+
+    const { query, direction } = state.search;
+    state.searchInputActive = false;
+    ui.showCommandPreview(undefined);
+    await executeNativeSearch(query, direction);
+  };
+
+  const repeatSearch = async (direction: 'forward' | 'backward'): Promise<void> => {
+    const query = state.lastSearch;
+    if (!query) {
+      return;
+    }
+
+    await executeNativeSearch(query, direction);
+  };
+
   const syncClipboardMirror = async (): Promise<void> => {
     const clipboardValue = await vscode.env.clipboard.readText();
     if (clipboardValue.length === 0 || clipboardValue === lastClipboard) {
       return;
     }
 
-    storeRegister(state, '9', {
-      text: clipboardValue,
-      linewise: clipboardValue.endsWith('\n')
-    });
+    storeRegister(state, '9', clipboardValue, clipboardValue.endsWith('\n') ? 'linewise' : 'charwise');
     lastClipboard = clipboardValue;
   };
 
@@ -195,6 +265,20 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
+      if (state.searchInputActive) {
+        if (key === MIV_KEYS.mode.enter || key === MIV_KEYS.mode.carriageReturn) {
+          await commitSearchInput();
+          return;
+        }
+
+        state.search = {
+          query: `${state.search?.query ?? ''}${key}`,
+          direction: state.search?.direction ?? 'forward'
+        };
+        updateSearchPreview();
+        return;
+      }
+
       if (key === MIV_KEYS.mode.enter || key === MIV_KEYS.mode.carriageReturn) {
         await vscode.commands.executeCommand('default:type', args);
         return;
@@ -229,6 +313,10 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand('miv.handleKey', async (key: string) => {
       if (state.mode !== MIV_MODES.NAV || state.registerViewerActive) {
+        return;
+      }
+
+      if (state.searchInputActive) {
         return;
       }
 
@@ -268,6 +356,31 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
+      if (result.command.action === 'forwardSearch') {
+        startSearchInput('forward');
+        return;
+      }
+
+      if (result.command.action === 'backwardSearch') {
+        startSearchInput('backward');
+        return;
+      }
+
+      if (result.command.action === 'searchNext') {
+        await repeatSearch(state.lastSearchDirection ?? 'forward');
+        buffer = '';
+        ui.showCommandPreview(undefined);
+        return;
+      }
+
+      if (result.command.action === 'searchPrevious') {
+        const direction = state.lastSearchDirection === 'backward' ? 'forward' : 'backward';
+        await repeatSearch(direction);
+        buffer = '';
+        ui.showCommandPreview(undefined);
+        return;
+      }
+
       await runParsedCommand(result.command);
       buffer = '';
       ui.showCommandPreview(undefined);
@@ -278,7 +391,23 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
     vscode.commands.registerCommand('miv.toNavMode', async () => {
+      if (state.searchInputActive) {
+        cancelSearchInput();
+        return;
+      }
+
       await setNav();
+    }),
+    vscode.commands.registerCommand('miv.searchBackspace', async () => {
+      if (!state.searchInputActive || !state.search) {
+        return;
+      }
+
+      state.search = {
+        ...state.search,
+        query: state.search.query.slice(0, -1)
+      };
+      updateSearchPreview();
     }),
     vscode.commands.registerCommand('miv.executeBuiltin', async (command: string, args?: unknown[]) => {
       resetInputState();
@@ -326,11 +455,8 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       const editor = vscode.window.activeTextEditor;
-      const linewise = editor ? isLinewiseSelection(editor) : clipboardValue.endsWith('\n');
-      storeRegister(state, '9', {
-        text: clipboardValue,
-        linewise
-      });
+      const type = editor && isLinewiseSelection(editor) ? 'linewise' : clipboardValue.endsWith('\n') ? 'linewise' : 'charwise';
+      storeRegister(state, '9', clipboardValue, type);
       lastClipboard = clipboardValue;
       ui.showMessage('stored clipboard in register 9');
     }),
@@ -360,10 +486,7 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      storeRegister(state, registerKey, {
-        text: clipboardValue,
-        linewise: clipboardValue.endsWith('\n')
-      });
+      storeRegister(state, registerKey, clipboardValue, clipboardValue.endsWith('\n') ? 'linewise' : 'charwise');
       ui.showMessage(`stored clipboard in register ${registerKey}`);
     }),
     vscode.commands.registerCommand('miv.showRegisters', async () => {

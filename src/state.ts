@@ -15,17 +15,28 @@ export interface AnchorPosition {
   position: vscode.Position;
 }
 
+export interface SearchState {
+  query: string;
+  direction: 'forward' | 'backward';
+}
+
 export interface MivState {
   mode: MivMode;
   lastCommand?: ParsedCommand;
   anchorPosition?: AnchorPosition;
-  registers: Record<string, Register>;
+  registers: Record<string, RegisterValue>;
   registerViewerActive: boolean;
+  search?: SearchState;
+  searchInputActive: boolean;
+  lastSearch?: string;
+  lastSearchDirection?: 'forward' | 'backward';
 }
 
-export interface Register {
+export type RegisterType = 'charwise' | 'linewise';
+
+export interface RegisterValue {
   text: string;
-  linewise: boolean;
+  type: RegisterType;
 }
 
 /**
@@ -35,12 +46,16 @@ export interface Register {
  *   Fully initialized state with empty registers 0..9.
  */
 export function createInitialState(): MivState {
-  const emptyRegister = (): Register => ({ text: '', linewise: false });
+  const emptyRegister = (): RegisterValue => ({ text: '', type: 'charwise' });
   return {
     mode: MIV_MODES.NAV,
     lastCommand: undefined,
     anchorPosition: undefined,
     registerViewerActive: false,
+    search: undefined,
+    searchInputActive: false,
+    lastSearch: undefined,
+    lastSearchDirection: undefined,
     registers: {
       '0': emptyRegister(),
       '1': emptyRegister(),
@@ -125,19 +140,20 @@ export function setAnchorFromEditor(state: MivState, editor: vscode.TextEditor):
  * Parameters:
  *   state - Mutable MIV state object.
  *   registerId - Register key or number.
- *   value - Register payload.
+ *   text - Register text payload.
+ *   type - Storage mode for later paste behavior.
  *
  * Side effects:
  *   Mutates `state.registers`.
  */
-export function storeRegister(state: MivState, registerId: string | number, value: Register | string, linewise = false): void {
+export function storeRegister(
+  state: MivState,
+  registerId: string | number,
+  text: string,
+  type: RegisterType
+): void {
   const key = String(registerId);
-  if (typeof value === 'string') {
-    state.registers[key] = { text: value, linewise };
-    return;
-  }
-
-  state.registers[key] = { text: value.text, linewise: value.linewise };
+  state.registers[key] = { text, type };
 }
 
 /**
@@ -150,7 +166,7 @@ export function storeRegister(state: MivState, registerId: string | number, valu
  * Returns:
  *   Register content, or empty register when unset.
  */
-export function getRegister(state: MivState, registerId: string | number): Register {
+export function getRegister(state: MivState, registerId: string | number): RegisterValue {
   const key = String(registerId);
-  return state.registers[key] ?? { text: '', linewise: false };
+  return state.registers[key] ?? { text: '', type: 'charwise' };
 }
