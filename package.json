@@ -3,7 +3,7 @@
   "publisher": "Entropyswe",
   "displayName": "MIV",
   "description": "Lightweight modal editing for VS Code inspired by Vim and designed for IDE workflows.",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "license": "MIT",
   "repository": {
     "type": "git",
