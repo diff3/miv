@@ -35,21 +35,34 @@ export function createUiFeedback(options: {
   let messageTimer: NodeJS.Timeout | undefined;
 
   const modeStatusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 1000);
+  const commandStatusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 999);
   const yankDecoration = vscode.window.createTextEditorDecorationType({
     backgroundColor: 'rgba(180,200,255,0.3)'
   });
 
   const renderStatus = (): void => {
     const mode = options.getMode();
-    const base = `MIV ${mode}`;
-    const suffix = messageText ?? previewText;
-    modeStatusBar.text = suffix ? `${base} | ${suffix}` : base;
+    const activeText = previewText ?? messageText;
+
+    modeStatusBar.text = `MIV ${mode}`;
     modeStatusBar.command = 'miv.openMenu';
     modeStatusBar.tooltip = 'Open MIV menu';
     modeStatusBar.backgroundColor = mode === MIV_MODES.NAV
-      ? new vscode.ThemeColor('statusBarItem.warningBackground')
-      : new vscode.ThemeColor('statusBarItem.remoteBackground');
+      ? undefined
+      : new vscode.ThemeColor('statusBarItem.warningBackground');
+    modeStatusBar.color = undefined;
     modeStatusBar.show();
+
+    if (!activeText) {
+      commandStatusBar.hide();
+      return;
+    }
+
+    commandStatusBar.text = activeText;
+    commandStatusBar.tooltip = 'MIV command line';
+    commandStatusBar.backgroundColor = undefined;
+    commandStatusBar.color = undefined;
+    commandStatusBar.show();
   };
 
   const showCommandPreview = (text?: string): void => {
@@ -84,6 +97,6 @@ export function createUiFeedback(options: {
     showMessage,
     flashYank,
     updateStatusBar: renderStatus,
-    disposables: [modeStatusBar, yankDecoration]
+    disposables: [modeStatusBar, commandStatusBar, yankDecoration]
   };
 }

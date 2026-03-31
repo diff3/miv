@@ -4,8 +4,6 @@
  * This module wires editor input events to parser/dispatcher execution, keeps
  * runtime state synchronized with VS Code context, and coordinates UI helpers.
  */
-import * as fs from 'fs';
-import * as path from 'path';
 import * as vscode from 'vscode';
 import {
   CONFIG,
@@ -16,10 +14,7 @@ import {
   REPEATABLE_BUILTIN_COMMANDS,
   isDigitKey,
   isManualRegisterKey,
-  refreshKeymapProfiles,
-  KEYMAP_PROFILES,
   normalizeKey,
-  setActiveKeymapName
 } from './config';
 import { dispatchCommand, getCommandUsageStatsSnapshot } from './dispatcher';
 import type { ParsedCommand } from './parser';
@@ -29,50 +24,72 @@ import { createInputRouter } from './runtime/inputRouter';
 import { createReplaceController } from './runtime/replaceController';
 import { createSearchController } from './runtime/searchController';
 import { createUiFeedback } from './uiFeedback';
-import { createInitialState, setAnchorFromEditor, setInsertMode, setLastCommand, setNavMode, setRawInputMode, storeRegister, type MivMode } from './state';
+import { createInitialState, setAnchorFromEditor, setInsertMode, setLastCommand, setNavMode, setRawInputMode, storeRegister, type MivMode, type RegisterType } from './state';
 
 const HANDLE_KEY_FORWARD_COMMANDS = [
-  { command: 'miv.cursorLeft', key: 'a' },
-  { command: 'miv.cursorRight', key: 'd' },
-  { command: 'miv.cursorUp', key: 'w' },
-  { command: 'miv.pageUp', key: 'W' },
-  { command: 'miv.cursorDown', key: 's' },
-  { command: 'miv.pageDown', key: 'S' },
-  { command: 'miv.lineStart', key: 'A' },
-  { command: 'miv.lineEnd', key: 'D' },
-  { command: 'miv.wordLeft', key: 'q' },
-  { command: 'miv.wordEndRight', key: 'e' },
-  { command: 'miv.wordEndLeft', key: 'Q' },
-  { command: 'miv.wordStartRight', key: 'E' },
-  { command: 'miv.deleteChar', key: 'x' },
-  { command: 'miv.deleteLine', key: 'b' },
-  { command: 'miv.deleteWord', key: 'X' },
-  { command: 'miv.yankWord', key: 'Y' },
+  { command: 'miv.cursorLeft', key: 'keya' },
+  { command: 'miv.cursorRight', key: 'keyd' },
+  { command: 'miv.cursorUp', key: 'keyw' },
+  { command: 'miv.pageUp', key: 'shift+keyw' },
+  { command: 'miv.cursorDown', key: 'keys' },
+  { command: 'miv.pageDown', key: 'shift+keys' },
+  { command: 'miv.lineStart', key: 'shift+keya' },
+  { command: 'miv.lineEnd', key: 'shift+keyd' },
+  { command: 'miv.wordLeft', key: 'keyq' },
+  { command: 'miv.wordEndRight', key: 'keye' },
+  { command: 'miv.wordEndLeft', key: 'shift+keyq' },
+  { command: 'miv.wordStartRight', key: 'shift+keye' },
+  { command: 'miv.deleteChar', key: 'keyx' },
+  { command: 'miv.deleteLine', key: 'keyb' },
+  { command: 'miv.deleteToLineEnd', key: 'shift+keyb' },
+  { command: 'miv.deleteWord', key: 'shift+keyx' },
+  { command: 'miv.yankWord', key: 'shift+keyy' },
   { command: 'miv.spaceInput', key: ' ' },
   { command: 'miv.textObjectAuto', key: '!' },
-  { command: 'miv.replaceChar', key: 'r' },
-  { command: 'miv.replaceWord', key: 'R' },
-  { command: 'miv.toggleCaseChar', key: '§' },
-  { command: 'miv.toggleCaseWord', key: '°' },
-  { command: 'miv.repeatLastCommand', key: 'c' },
+  { command: 'miv.textObjectDoubleQuote', key: '"' },
+  { command: 'miv.textObjectSingleQuote', key: "'" },
+  { command: 'miv.textObjectParen', key: '(' },
+  { command: 'miv.textObjectBracket', key: '[' },
+  { command: 'miv.textObjectBrace', key: '{' },
+  { command: 'miv.textObjectAngle', key: '<' },
+  { command: 'miv.replaceChar', key: 'keyr' },
+  { command: 'miv.replaceWord', key: 'shift+keyr' },
+  { command: 'miv.toggleCaseChar', key: 'backquote' },
+  { command: 'miv.toggleCaseWord', key: 'shift+backquote' },
+  { command: 'miv.repeatLastCommand', key: 'keyc' },
   { command: 'miv.repeatLastCommandAlias', key: '.' },
-  { command: 'miv.enterInsert', key: 'i' },
-  { command: 'miv.insertAtLineStart', key: 'I' },
-  { command: 'miv.insertAtLineEnd', key: 'k' },
-  { command: 'miv.undo', key: 'u' },
-  { command: 'miv.yankLine', key: 'y' },
-  { command: 'miv.openLineBelow', key: 'o' },
-  { command: 'miv.openLineAbove', key: 'O' },
-  { command: 'miv.paste', key: 'p' },
-  { command: 'miv.showRegistersKey', key: 'v' },
+  { command: 'miv.enterInsert', key: 'keyi' },
+  { command: 'miv.insertAtLineStart', key: 'shift+keyi' },
+  { command: 'miv.insertAtLineEnd', key: 'keyk' },
+  { command: 'miv.undo', key: 'keyu' },
+  { command: 'miv.yankLine', key: 'keyy' },
+  { command: 'miv.openLineBelow', key: 'keyo' },
+  { command: 'miv.openLineAbove', key: 'shift+keyo' },
+  { command: 'miv.paste', key: 'keyp' },
+  { command: 'miv.pasteBefore', key: 'shift+keyp' },
+  { command: 'miv.jumpBracketMatch', key: '%' },
+  { command: 'miv.joinLineWithNext', key: '&' },
+  { command: 'miv.changeToLineEnd', key: '-' },
+  { command: 'miv.changeLine', key: '_' },
+  { command: 'miv.showRegistersKey', key: 'keyv' },
+  { command: 'miv.prefixDigit0', key: 'digit0' },
+  { command: 'miv.prefixDigit1', key: 'digit1' },
+  { command: 'miv.prefixDigit2', key: 'digit2' },
+  { command: 'miv.prefixDigit3', key: 'digit3' },
+  { command: 'miv.prefixDigit4', key: 'digit4' },
+  { command: 'miv.prefixDigit5', key: 'digit5' },
+  { command: 'miv.prefixDigit6', key: 'digit6' },
+  { command: 'miv.prefixDigit7', key: 'digit7' },
+  { command: 'miv.prefixDigit8', key: 'digit8' },
+  { command: 'miv.prefixDigit9', key: 'digit9' },
   { command: 'miv.replaceMatches', key: '=' },
   { command: 'miv.searchForward', key: '/' },
   { command: 'miv.searchBackward', key: '\\' },
   { command: 'miv.searchRegex', key: ',' },
-  { command: 'miv.searchNext', key: 'n' },
-  { command: 'miv.searchPrevious', key: 'N' },
-  { command: 'miv.gotoLine', key: 'g' },
-  { command: 'miv.documentBottom', key: 'G' }
+  { command: 'miv.searchNext', key: 'keyn' },
+  { command: 'miv.searchPrevious', key: 'shift+keyn' },
+  { command: 'miv.gotoLine', key: 'keyg' },
+  { command: 'miv.documentBottom', key: 'shift+keyg' }
 ] as const;
 
 /**
@@ -85,26 +102,6 @@ const HANDLE_KEY_FORWARD_COMMANDS = [
  *   Registers commands, mutates workspace cursor style, and initializes mode UI.
  */
 export function activate(context: vscode.ExtensionContext): void {
-  const builtinKeymapDir = path.join(context.extensionPath, 'keymaps');
-  const userKeymapDir = path.join(path.dirname(context.extensionPath), 'miv');
-  if (!fs.existsSync(userKeymapDir)) {
-    fs.mkdirSync(userKeymapDir, { recursive: true });
-  }
-  refreshKeymapProfiles(builtinKeymapDir, userKeymapDir);
-
-  const syncKeymapProfile = (): void => {
-    const config = vscode.workspace.getConfiguration('miv');
-    const savedKeymap = config.get<string>('keymap');
-    if (savedKeymap) {
-      setActiveKeymapName(savedKeymap);
-      return;
-    }
-
-    setActiveKeymapName('default');
-  };
-
-  syncKeymapProfile();
-
   const state = createInitialState();
   const statsOutput = vscode.window.createOutputChannel('MIV Stats');
   const searchDecoration = vscode.window.createTextEditorDecorationType({
@@ -179,13 +176,13 @@ export function activate(context: vscode.ExtensionContext): void {
     ui.showCommandPreview(state.replaceRuleInputActive ? state.replaceRuleBuffer : undefined);
   };
 
-  const syncClipboardMirror = async (): Promise<void> => {
+  const syncClipboardMirror = async (typeOverride?: RegisterType): Promise<void> => {
     const clipboardValue = await vscode.env.clipboard.readText();
     if (clipboardValue.length === 0 || clipboardValue === lastClipboard) {
       return;
     }
 
-    storeRegister(state, '9', clipboardValue, clipboardValue.endsWith('\n') ? 'linewise' : 'charwise');
+    storeRegister(state, '9', clipboardValue, typeOverride ?? (clipboardValue.endsWith('\n') ? 'linewise' : 'charwise'));
     lastClipboard = clipboardValue;
   };
 
@@ -309,7 +306,7 @@ export function activate(context: vscode.ExtensionContext): void {
     });
 
     if (shouldSyncClipboardAfterParsedCommand(parsed)) {
-      await syncClipboardMirror();
+      void syncClipboardMirror();
     }
   };
 
@@ -360,11 +357,6 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   const subscriptions = [
-    vscode.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration('miv.keymap')) {
-        syncKeymapProfile();
-      }
-    }),
     ...HANDLE_KEY_FORWARD_COMMANDS.map(({ command, key }) => vscode.commands.registerCommand(command, async () => {
       await vscode.commands.executeCommand('miv.handleKey', key);
     })),
@@ -469,30 +461,18 @@ export function activate(context: vscode.ExtensionContext): void {
       inputBuffer = [];
       previewBuffer = '';
       ui.showCommandPreview(undefined);
-      await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
-      const clipboardValue = await vscode.env.clipboard.readText();
-      if (clipboardValue.length === 0) {
-        ui.showMessage('clipboard empty');
-        return;
-      }
-
       const editor = vscode.window.activeTextEditor;
-      const type = editor && isLinewiseSelection(editor) ? 'linewise' : clipboardValue.endsWith('\n') ? 'linewise' : 'charwise';
-      storeRegister(state, '9', clipboardValue, type);
-      lastClipboard = clipboardValue;
-      ui.showMessage('stored clipboard in register 9');
+      const registerType = editor && isLinewiseSelection(editor) ? 'linewise' : 'charwise';
+      await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
+      void syncClipboardMirror(registerType);
     }),
     vscode.commands.registerCommand('miv.pasteFromClipboard', async () => {
       clearFallbackTimer();
       inputBuffer = [];
       previewBuffer = '';
       ui.showCommandPreview(undefined);
-      await runParsedCommand(
-        {
-          sequence: 'ctrl+v',
-          action: 'paste'
-        }
-      );
+      await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
+      void syncClipboardMirror();
     }),
     vscode.commands.registerCommand('miv.storeRegister', async (register: string) => {
       clearFallbackTimer();
@@ -539,23 +519,6 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('miv.openKeybindings', async () => {
       await vscode.commands.executeCommand('workbench.action.openGlobalKeybindings', 'miv');
     }),
-    vscode.commands.registerCommand('miv.switchKeymap', async () => {
-      refreshKeymapProfiles(builtinKeymapDir, userKeymapDir);
-      const options = Object.keys(KEYMAP_PROFILES);
-      const selected = await vscode.window.showQuickPick(options, {
-        placeHolder: 'Select MIV keymap'
-      });
-      if (!selected) {
-        return;
-      }
-
-      setActiveKeymapName(selected);
-      await vscode.workspace
-        .getConfiguration('miv')
-        .update('keymap', selected, vscode.ConfigurationTarget.Global);
-
-      vscode.window.showInformationMessage(`MIV keymap switched to: ${selected}`);
-    }),
     vscode.commands.registerCommand('miv.openMenu', async () => {
       clearFallbackTimer();
       inputBuffer = [];
@@ -566,7 +529,6 @@ export function activate(context: vscode.ExtensionContext): void {
         { label: '$(graph) Command Stats', action: async () => vscode.commands.executeCommand('miv.showCommandStats') },
         { label: '$(files) Registers', action: async () => vscode.commands.executeCommand('miv.showRegisters') },
         { label: '$(search) Toggle Search Highlight', action: async () => vscode.commands.executeCommand('miv.toggleSearchHighlight') },
-        { label: '$(keyboard) Switch Keymap', action: async () => vscode.commands.executeCommand('miv.switchKeymap') },
         { label: '$(keyboard) Change Keybindings', action: async () => vscode.commands.executeCommand('miv.openKeybindings') },
         { label: '$(book) Open KEYMAP', action: async () => vscode.commands.executeCommand('miv.openKeymap') }
       ];

@@ -35,14 +35,6 @@ export const REGISTER_ACTION_HANDLERS: ActionHandlerMap = {
     for (let i = 0; i < count; i += 1) {
       await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
     }
-    const clipboardValue = await vscode.env.clipboard.readText();
-    if (clipboardValue.length === 0) {
-      hooks?.onStatusMessage?.('clipboard empty');
-      return;
-    }
-
-    storeRegister(state, '9', clipboardValue, getRegisterTypeFromText(clipboardValue));
-    hooks?.onStatusMessage?.('stored paste in register 9');
   },
   pasteAfter: async ({ command, state, hooks }) => {
     const count = normalizePositiveInt(command.args?.[0], 1);

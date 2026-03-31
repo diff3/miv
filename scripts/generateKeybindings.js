@@ -2,11 +2,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const vm = require('vm');
-const ts = require('typescript');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
-const CONFIG_PATH = path.join(ROOT_DIR, 'src', 'config.ts');
+const DEFAULT_KEYMAP_PATH = path.join(ROOT_DIR, 'keymaps', 'default.json');
 const PACKAGE_JSON_PATH = path.join(ROOT_DIR, 'package.json');
 const NAV_WHEN_CLAUSE = "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending";
 const LEGACY_NAV_COMMANDS = new Set([
@@ -52,6 +50,71 @@ const LEGACY_NAV_COMMANDS = new Set([
   'miv.gotoLine',
   'miv.documentBottom'
 ]);
+const TOKEN_COMMAND_MAP = {
+  LEFT: 'miv.cursorLeft',
+  RIGHT: 'miv.cursorRight',
+  UP: 'miv.cursorUp',
+  PAGE_UP: 'miv.pageUp',
+  DOWN: 'miv.cursorDown',
+  PAGE_DOWN: 'miv.pageDown',
+  LINE_START: 'miv.lineStart',
+  LINE_END: 'miv.lineEnd',
+  WORD_LEFT: 'miv.wordLeft',
+  WORD_RIGHT: 'miv.wordEndRight',
+  WORD_END_LEFT: 'miv.wordEndLeft',
+  WORD_END_RIGHT: 'miv.wordStartRight',
+  DELETE_CHAR: 'miv.deleteChar',
+  DELETE_LINE: 'miv.deleteLine',
+  DELETE_TO_LINE_END: 'miv.deleteToLineEnd',
+  DELETE_WORD: 'miv.deleteWord',
+  YANK_WORD: 'miv.yankWord',
+  SPACE: 'miv.spaceInput',
+  TEXT_OBJECT_AUTO: 'miv.textObjectAuto',
+  TEXT_OBJECT_DOUBLE_QUOTE: 'miv.textObjectDoubleQuote',
+  TEXT_OBJECT_SINGLE_QUOTE: 'miv.textObjectSingleQuote',
+  TEXT_OBJECT_PAREN: 'miv.textObjectParen',
+  TEXT_OBJECT_BRACKET: 'miv.textObjectBracket',
+  TEXT_OBJECT_BRACE: 'miv.textObjectBrace',
+  TEXT_OBJECT_ANGLE: 'miv.textObjectAngle',
+  REPLACE_CHAR: 'miv.replaceChar',
+  REPLACE_WORD: 'miv.replaceWord',
+  TOGGLE_CASE_CHAR: 'miv.toggleCaseChar',
+  TOGGLE_CASE_WORD: 'miv.toggleCaseWord',
+  REPEAT: 'miv.repeatLastCommand',
+  REPEAT_ALIAS: 'miv.repeatLastCommandAlias',
+  INSERT: 'miv.enterInsert',
+  INSERT_LINE_START: 'miv.insertAtLineStart',
+  INSERT_LINE_END: 'miv.insertAtLineEnd',
+  UNDO: 'miv.undo',
+  YANK_LINE: 'miv.yankLine',
+  OPEN_LINE_BELOW: 'miv.openLineBelow',
+  OPEN_LINE_ABOVE: 'miv.openLineAbove',
+  PASTE_AFTER: 'miv.paste',
+  PASTE_BEFORE: 'miv.pasteBefore',
+  JUMP_BRACKET_MATCH: 'miv.jumpBracketMatch',
+  JOIN_LINE_WITH_NEXT: 'miv.joinLineWithNext',
+  CHANGE_TO_LINE_END: 'miv.changeToLineEnd',
+  CHANGE_LINE: 'miv.changeLine',
+  SHOW_REGISTERS: 'miv.showRegistersKey',
+  REPLACE_MATCHES: 'miv.replaceMatches',
+  SEARCH_FORWARD: 'miv.searchForward',
+  SEARCH_BACKWARD: 'miv.searchBackward',
+  SEARCH_REGEX: 'miv.searchRegex',
+  SEARCH_NEXT: 'miv.searchNext',
+  SEARCH_PREVIOUS: 'miv.searchPrevious',
+  GOTO_LINE: 'miv.gotoLine',
+  DOC_BOTTOM: 'miv.documentBottom',
+  '0': 'miv.prefixDigit0',
+  '1': 'miv.prefixDigit1',
+  '2': 'miv.prefixDigit2',
+  '3': 'miv.prefixDigit3',
+  '4': 'miv.prefixDigit4',
+  '5': 'miv.prefixDigit5',
+  '6': 'miv.prefixDigit6',
+  '7': 'miv.prefixDigit7',
+  '8': 'miv.prefixDigit8',
+  '9': 'miv.prefixDigit9'
+};
 
 function fail(message) {
   console.error(message);
@@ -100,45 +163,14 @@ function toVscodeKeybindingKey(key) {
 }
 
 function loadActiveKeymap() {
-  const source = fs.readFileSync(CONFIG_PATH, 'utf8');
-  const { outputText, diagnostics } = ts.transpileModule(source, {
-    compilerOptions: {
-      module: ts.ModuleKind.CommonJS,
-      target: ts.ScriptTarget.ES2022
-    },
-    reportDiagnostics: true
-  });
-
-  if (diagnostics && diagnostics.length > 0) {
-    const messages = diagnostics
-      .map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'))
-      .join('\n');
-    fail(`Failed to transpile src/config.ts:\n${messages}`);
-  }
-
-  const module = { exports: {} };
-  const context = vm.createContext({
-    module,
-    exports: module.exports,
-    require,
-    __dirname: path.dirname(CONFIG_PATH),
-    __filename: CONFIG_PATH
-  });
-
-  try {
-    vm.runInContext(outputText, context, { filename: CONFIG_PATH });
-  } catch (error) {
-    fail(`Failed to evaluate src/config.ts: ${error instanceof Error ? error.message : String(error)}`);
-  }
-
-  const { ACTIVE_KEYMAP } = module.exports;
+  const ACTIVE_KEYMAP = JSON.parse(fs.readFileSync(DEFAULT_KEYMAP_PATH, 'utf8'));
   if (!Array.isArray(ACTIVE_KEYMAP)) {
-    fail('src/config.ts does not export ACTIVE_KEYMAP as an array.');
+    fail('keymaps/default.json must contain an array.');
   }
 
   for (const entry of ACTIVE_KEYMAP) {
     if (!entry || typeof entry.key !== 'string' || typeof entry.token !== 'string') {
-      fail('ACTIVE_KEYMAP contains an invalid entry. Expected { key: string, token: string }.');
+      fail('keymaps/default.json contains an invalid entry. Expected { key: string, token: string }.');
     }
   }
 
@@ -147,12 +179,19 @@ function loadActiveKeymap() {
 
 function buildGeneratedKeybindings(navKeyBindings) {
   return [
-    ...navKeyBindings.map(({ key, token }) => ({
-      key: toVscodeKeybindingKey(key),
-      command: 'miv.handleKey',
-      args: key.toLowerCase(),
-      when: NAV_WHEN_CLAUSE
-    })),
+    ...navKeyBindings.map(({ key, token }) => {
+      const binding = {
+        key: toVscodeKeybindingKey(key),
+        command: TOKEN_COMMAND_MAP[token] ?? 'miv.handleKey',
+        when: NAV_WHEN_CLAUSE
+      };
+
+      if (binding.command === 'miv.handleKey') {
+        binding.args = key.toLowerCase();
+      }
+
+      return binding;
+    }),
     {
       key: 'backspace',
       command: 'miv.searchBackspace',

@@ -43,14 +43,19 @@ export async function pasteRegisterValue(value: RegisterValue, direction: PasteD
     return;
   }
 
-  if (direction === 'after') {
-    await vscode.commands.executeCommand('cursorRight');
-  }
+  const active = editor.selection.active;
+  const line = editor.document.lineAt(active.line);
+  const insertAt = direction === 'after'
+    ? new vscode.Position(active.line, Math.min(line.text.length, active.character + 1))
+    : active;
 
-  const insertAt = editor.selection.active;
   await editor.edit((editBuilder) => {
     editBuilder.insert(insertAt, value.text);
   });
+
+  const selection = new vscode.Selection(insertAt, insertAt);
+  editor.selection = selection;
+  editor.revealRange(selection);
 }
 
 async function pasteLinewise(editor: vscode.TextEditor, value: string, direction: PasteDirection): Promise<void> {
