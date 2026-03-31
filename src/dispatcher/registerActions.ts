@@ -27,7 +27,7 @@ export const REGISTER_ACTION_HANDLERS: ActionHandlerMap = {
       return;
     }
 
-    await pasteRegisterValue(value, 'after');
+    await pasteRegisterValue(value, 'before');
     hooks?.onStatusMessage?.(`pasted register ${registerKey}`);
   },
   paste: async ({ command, state, hooks }) => {

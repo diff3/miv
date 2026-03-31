@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { MIV_KEYS } from '../config';
 import type { ParsedCommand } from '../parser';
-import { RAW_INPUT_MODES, setRawInputMode, type MivState } from '../state';
+import { COMMAND_INPUT_KINDS, startCommandInput, stopCommandInput, type MivState } from '../state';
 import type { UiFeedback } from '../uiFeedback';
 
 export interface SearchController {
@@ -27,7 +27,7 @@ export function createSearchController(options: {
   setLastCommand: (command: ParsedCommand) => void;
 }): SearchController {
   const getSearchPreviewText = (): string => {
-    if (!options.state.search) {
+    if (!options.state.search || !options.state.commandInputActive) {
       return undefined as never;
     }
 
@@ -37,7 +37,7 @@ export function createSearchController(options: {
         ? MIV_KEYS.commands.searchForward
         : MIV_KEYS.commands.searchBackward;
 
-    return `${prefix}${options.state.searchBuffer}`;
+    return `${prefix}${options.state.commandBuffer}`;
   };
 
   const updateSearchPreview = (): void => {
@@ -186,9 +186,40 @@ export function createSearchController(options: {
     return true;
   };
 
+  const rerunLastSearch = async (direction: 'forward' | 'backward'): Promise<boolean> => {
+    if (options.state.lastSearchPattern.length === 0) {
+      return false;
+    }
+
+    const found = await executeSearch(
+      options.state.lastSearchPattern,
+      direction,
+      options.state.lastSearchIsRegex ? 'regex' : 'literal'
+    );
+
+    if (!found) {
+      return false;
+    }
+
+    options.state.lastSearchDirection = direction;
+    return true;
+  };
+
   return {
     async startSearch(direction, kind = 'literal'): Promise<void> {
-      setRawInputMode(options.state, RAW_INPUT_MODES.SEARCH);
+      startCommandInput(
+        options.state,
+        kind === 'regex'
+          ? COMMAND_INPUT_KINDS.SEARCH_REGEX
+          : direction === 'forward'
+            ? COMMAND_INPUT_KINDS.SEARCH_FORWARD
+            : COMMAND_INPUT_KINDS.SEARCH_BACKWARD,
+        kind === 'regex'
+          ? MIV_KEYS.commands.searchRegexPrompt
+          : direction === 'forward'
+            ? MIV_KEYS.commands.searchForward
+            : MIV_KEYS.commands.searchBackward
+      );
       options.state.searchBuffer = '';
       options.state.search = { query: '', direction, kind };
       await options.syncInputs();
@@ -208,6 +239,7 @@ export function createSearchController(options: {
         return;
       }
 
+      options.state.commandBuffer += key;
       options.state.searchBuffer += key;
       updateSearchPreview();
     },
@@ -216,6 +248,7 @@ export function createSearchController(options: {
         return;
       }
 
+      options.state.commandBuffer = options.state.commandBuffer.slice(0, -1);
       options.state.searchBuffer = options.state.searchBuffer.slice(0, -1);
       updateSearchPreview();
     },
@@ -227,7 +260,7 @@ export function createSearchController(options: {
 
       const query = options.state.searchBuffer;
       const { direction, kind } = options.state.search;
-      setRawInputMode(options.state, RAW_INPUT_MODES.NONE);
+      stopCommandInput(options.state);
       options.state.search = query.length === 0 ? undefined : { query, direction, kind };
       options.state.searchBuffer = '';
       await options.syncInputs();
@@ -253,7 +286,7 @@ export function createSearchController(options: {
       });
     },
     cancelSearch(): void {
-      setRawInputMode(options.state, RAW_INPUT_MODES.NONE);
+      stopCommandInput(options.state);
       options.state.searchBuffer = '';
       options.state.search = undefined;
       void options.syncInputs();
@@ -261,7 +294,12 @@ export function createSearchController(options: {
     },
     async nextMatch(): Promise<void> {
       const editor = vscode.window.activeTextEditor;
-      if (!editor || options.state.lastMatchList.length === 0) {
+      if (!editor) {
+        return;
+      }
+
+      if (options.state.lastMatchList.length === 0) {
+        await rerunLastSearch('forward');
         return;
       }
 
@@ -277,7 +315,12 @@ export function createSearchController(options: {
     },
     async previousMatch(): Promise<void> {
       const editor = vscode.window.activeTextEditor;
-      if (!editor || options.state.lastMatchList.length === 0) {
+      if (!editor) {
+        return;
+      }
+
+      if (options.state.lastMatchList.length === 0) {
+        await rerunLastSearch('backward');
         return;
       }
 

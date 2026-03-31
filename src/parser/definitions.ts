@@ -95,7 +95,7 @@ export const SINGLE_KEY_COMMANDS: Record<string, ParsedCommand> = {
   },
   [MIV_KEYS.commands.pasteBefore]: {
     sequence: MIV_KEYS.commands.pasteBefore,
-    action: 'pasteBefore'
+    action: 'pasteAfter'
   },
   [MIV_KEYS.commands.changeToLineEnd]: {
     sequence: MIV_KEYS.commands.changeToLineEnd,
@@ -136,11 +136,16 @@ export const SINGLE_KEY_COMMANDS: Record<string, ParsedCommand> = {
     action: 'gotoLine',
     args: [1]
   },
+  [MIV_KEYS.commands.docMiddle]: {
+    sequence: MIV_KEYS.commands.docMiddle,
+    action: 'gotoDocumentPercent',
+    args: [50]
+  },
   [MIV_KEYS.operators.yank]: { sequence: MIV_KEYS.operators.yank, action: 'yankLines', args: [1] },
   [MIV_KEYS.commands.yankWord]: { sequence: MIV_KEYS.commands.yankWord, action: 'yankWord', args: [1] },
   [MIV_KEYS.operators.paste]: {
     sequence: MIV_KEYS.operators.paste,
-    action: 'pasteAfter',
+    action: 'pasteBefore',
     vscodeCommand: 'editor.action.clipboardPasteAction'
   },
   [MIV_KEYS.registers.viewer]: {
@@ -179,6 +184,8 @@ export const TEXT_OBJECT_KEYS = new Set<string>([
   MIV_KEYS.textObjects.auto,
   MIV_KEYS.textObjects.doubleQuote,
   MIV_KEYS.textObjects.singleQuote,
+  MIV_KEYS.textObjects.backtick,
+  MIV_KEYS.textObjects.acute,
   MIV_KEYS.textObjects.paren,
   MIV_KEYS.textObjects.bracket,
   MIV_KEYS.textObjects.brace,

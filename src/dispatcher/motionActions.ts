@@ -48,6 +48,34 @@ const NAVIGATION_ACTION_HANDLERS: ActionHandlerMap = {
     const selection = new vscode.Selection(position, position);
     editor.selection = selection;
     editor.revealRange(selection);
+  },
+  gotoDocumentPercent: async ({ command }) => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      return;
+    }
+
+    const percent = Math.min(Math.max(normalizePositiveInt(command.args?.[0], 50), 0), 100);
+    const lastLineIndex = Math.max(editor.document.lineCount - 1, 0);
+    const line = Math.round((lastLineIndex * percent) / 100);
+    const position = new vscode.Position(line, 0);
+    const selection = new vscode.Selection(position, position);
+    editor.selection = selection;
+    editor.revealRange(selection);
+  },
+  gotoLineFromBottom: async ({ command }) => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      return;
+    }
+
+    const countFromBottom = normalizePositiveInt(command.args?.[0], 1);
+    const line = Math.max(editor.document.lineCount - countFromBottom, 0);
+    const character = Math.min(editor.selection.active.character, editor.document.lineAt(line).text.length);
+    const position = new vscode.Position(line, character);
+    const selection = new vscode.Selection(position, position);
+    editor.selection = selection;
+    editor.revealRange(selection);
   }
 };
 
@@ -100,6 +128,10 @@ interface DelimiterPair {
 }
 
 const BRACKET_OPEN_TO_CLOSE: Record<string, string> = {
+  '"': '"',
+  '\'': '\'',
+  '`': '`',
+  '´': '´',
   '(': ')',
   '[': ']',
   '{': '}',
@@ -107,11 +139,23 @@ const BRACKET_OPEN_TO_CLOSE: Record<string, string> = {
 };
 
 const BRACKET_CLOSE_TO_OPEN: Record<string, string> = {
+  '"': '"',
+  '\'': '\'',
+  '`': '`',
+  '´': '´',
   ')': '(',
   ']': '[',
   '}': '{',
   '>': '<'
 };
+
+function isEscaped(text: string, index: number): boolean {
+  let backslashCount = 0;
+  for (let current = index - 1; current >= 0 && text[current] === '\\'; current -= 1) {
+    backslashCount += 1;
+  }
+  return backslashCount % 2 === 1;
+}
 
 async function executeJumpBracketMatch(): Promise<void> {
   const editor = vscode.window.activeTextEditor;
@@ -133,7 +177,7 @@ async function executeJumpBracketMatch(): Promise<void> {
   editor.revealRange(selection);
 }
 
-function findMatchingBracketOffset(text: string, cursorOffset: number): number | undefined {
+export function findMatchingBracketOffset(text: string, cursorOffset: number): number | undefined {
   if (cursorOffset < text.length) {
     const current = text[cursorOffset];
     const currentMatch = findMatchWhenOnBracket(text, cursorOffset, current);
@@ -156,6 +200,10 @@ function findMatchingBracketOffset(text: string, cursorOffset: number): number |
 function findMatchWhenOnBracket(text: string, offset: number, char: string): number | undefined {
   const forwardClose = BRACKET_OPEN_TO_CLOSE[char];
   if (forwardClose) {
+    if (forwardClose === char) {
+      return findSymmetricDelimiterPairOffset(text, offset, char);
+    }
+
     return scanForwardForMatch(text, offset, char, forwardClose);
   }
 
@@ -167,7 +215,39 @@ function findMatchWhenOnBracket(text: string, offset: number, char: string): num
   return undefined;
 }
 
+function findSymmetricDelimiterPairOffset(text: string, offset: number, char: string): number | undefined {
+  const delimiterOffsets: number[] = [];
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] !== char || isEscaped(text, index)) {
+      continue;
+    }
+
+    delimiterOffsets.push(index);
+  }
+
+  const pairIndex = delimiterOffsets.indexOf(offset);
+  if (pairIndex < 0) {
+    return undefined;
+  }
+
+  if (pairIndex % 2 === 0) {
+    return delimiterOffsets[pairIndex + 1];
+  }
+
+  return delimiterOffsets[pairIndex - 1];
+}
+
 function scanForwardForMatch(text: string, startOffset: number, open: string, close: string): number | undefined {
+  if (open === close) {
+    for (let index = startOffset + 1; index < text.length; index += 1) {
+      if (text[index] !== close || isEscaped(text, index)) {
+        continue;
+      }
+      return index;
+    }
+    return undefined;
+  }
+
   let depth = 0;
   for (let index = startOffset; index < text.length; index += 1) {
     const char = text[index];
@@ -187,6 +267,16 @@ function scanForwardForMatch(text: string, startOffset: number, open: string, cl
 }
 
 function scanBackwardForMatch(text: string, startOffset: number, open: string, close: string): number | undefined {
+  if (open === close) {
+    for (let index = startOffset - 1; index >= 0; index -= 1) {
+      if (text[index] !== open || isEscaped(text, index)) {
+        continue;
+      }
+      return index;
+    }
+    return undefined;
+  }
+
   let depth = 0;
   for (let index = startOffset; index >= 0; index -= 1) {
     const char = text[index];
@@ -212,6 +302,10 @@ function findEnclosingBracketClose(text: string, cursorOffset: number): number |
   for (const [open, close] of Object.entries(BRACKET_OPEN_TO_CLOSE)) {
     for (let openOffset = cursorOffset - 1; openOffset >= 0; openOffset -= 1) {
       if (text[openOffset] !== open) {
+        continue;
+      }
+
+      if (open === close && isEscaped(text, openOffset)) {
         continue;
       }
 

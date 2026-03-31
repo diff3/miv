@@ -6,7 +6,7 @@ const path = require('path');
 const ROOT_DIR = path.resolve(__dirname, '..');
 const DEFAULT_KEYMAP_PATH = path.join(ROOT_DIR, 'keymaps', 'default.json');
 const PACKAGE_JSON_PATH = path.join(ROOT_DIR, 'package.json');
-const NAV_WHEN_CLAUSE = "editorTextFocus && miv.mode == 'NAV' && !miv.searchActive && !miv.replaceRuleInputActive && !miv.replaceCharPending";
+const NAV_WHEN_CLAUSE = "editorTextFocus && miv.mode == 'NAV' && !miv.commandInputActive && !miv.replaceCharPending";
 const LEGACY_NAV_COMMANDS = new Set([
   'miv.cursorLeft',
   'miv.cursorRight',
@@ -68,7 +68,6 @@ const TOKEN_COMMAND_MAP = {
   DELETE_TO_LINE_END: 'miv.deleteToLineEnd',
   DELETE_WORD: 'miv.deleteWord',
   YANK_WORD: 'miv.yankWord',
-  SPACE: 'miv.spaceInput',
   TEXT_OBJECT_AUTO: 'miv.textObjectAuto',
   TEXT_OBJECT_DOUBLE_QUOTE: 'miv.textObjectDoubleQuote',
   TEXT_OBJECT_SINGLE_QUOTE: 'miv.textObjectSingleQuote',
@@ -195,7 +194,7 @@ function buildGeneratedKeybindings(navKeyBindings) {
     {
       key: 'backspace',
       command: 'miv.searchBackspace',
-      when: "editorTextFocus && (miv.searchActive || miv.replaceRuleInputActive)"
+      when: "editorTextFocus && miv.commandInputActive"
     }
   ];
 }

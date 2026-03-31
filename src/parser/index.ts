@@ -62,6 +62,8 @@ export type ParsedAction =
   | 'searchNext'
   | 'searchPrevious'
   | 'gotoLine'
+  | 'gotoDocumentPercent'
+  | 'gotoLineFromBottom'
   | 'builtinEdit'
   | 'textObjectOperation';
 
@@ -251,6 +253,22 @@ function parseTextObjectCommand(buffer: string): ParseResult | undefined {
 
   if (buffer.length === 1) {
     return { status: 'partial' };
+  }
+
+  const shortCommandKey = buffer[1];
+  if (TEXT_OBJECT_COMMAND_KEYS.has(shortCommandKey)) {
+    if (buffer.length !== 2) {
+      return INVALID_RESULT;
+    }
+
+    return {
+      status: 'complete',
+      command: {
+        sequence: buffer,
+        action: 'textObjectOperation',
+        args: [buffer[0], getDefaultTextObjectRegister(shortCommandKey), shortCommandKey]
+      }
+    };
   }
 
   if (buffer[1] !== ' ') {
@@ -648,6 +666,32 @@ function parseImmediateCountCommand(commandKey: string, count: number, sequence:
       command: {
         sequence,
         action: 'gotoLine',
+        args: [count]
+      }
+    };
+  }
+
+  if (commandKey === MIV_KEYS.commands.docMiddle) {
+    if (sequence.length !== 2 || count < 1 || count > 9) {
+      return INVALID_RESULT;
+    }
+
+    return {
+      status: 'complete',
+      command: {
+        sequence,
+        action: 'gotoDocumentPercent',
+        args: [count * 10]
+      }
+    };
+  }
+
+  if (commandKey === MIV_KEYS.commands.docBottom) {
+    return {
+      status: 'complete',
+      command: {
+        sequence,
+        action: 'gotoLineFromBottom',
         args: [count]
       }
     };

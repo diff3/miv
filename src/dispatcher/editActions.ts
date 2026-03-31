@@ -153,9 +153,16 @@ async function executeDeleteLine(command: ParsedCommand, state: import('../state
   const document = editor.document;
   const startLine = editor.selection.active.line;
   const endLine = Math.min(document.lineCount - 1, startLine + count - 1);
+  const isDeletingToDocumentEnd = endLine === document.lineCount - 1;
+  const rangeStart = isDeletingToDocumentEnd && startLine > 0
+    ? document.lineAt(startLine - 1).range.end
+    : document.lineAt(startLine).range.start;
+  const rangeEnd = isDeletingToDocumentEnd
+    ? document.lineAt(endLine).range.end
+    : document.lineAt(endLine).rangeIncludingLineBreak.end;
   const range = new vscode.Range(
-    document.lineAt(startLine).range.start,
-    document.lineAt(endLine).rangeIncludingLineBreak.end
+    rangeStart,
+    rangeEnd
   );
   const deletedText = document.getText(range);
   if (deletedText.length === 0) {
@@ -165,7 +172,8 @@ async function executeDeleteLine(command: ParsedCommand, state: import('../state
   await editor.edit((editBuilder) => {
     editBuilder.delete(range);
   });
-  const caret = new vscode.Position(startLine, 0);
+  const caretLine = Math.min(startLine, editor.document.lineCount - 1);
+  const caret = new vscode.Position(Math.max(caretLine, 0), 0);
   editor.selection = new vscode.Selection(caret, caret);
   storeRegister(state, '8', deletedText, 'linewise');
   hooks?.onStatusMessage?.('stored delete in register 8');
@@ -183,6 +191,7 @@ async function executeReplaceChar(command: ParsedCommand): Promise<void> {
   }
 
   const position = editor.selection.active;
+  editor.selection = new vscode.Selection(position, position);
   const line = editor.document.lineAt(position.line);
   if (position.character >= line.text.length) {
     return;
@@ -347,11 +356,35 @@ interface DelimiterPair {
 const TEXT_OBJECT_PAIRS: Record<string, DelimiterPair> = {
   '"': { open: '"', close: '"' },
   "'": { open: "'", close: "'" },
+  '`': { open: '`', close: '`' },
+  '´': { open: '´', close: '´' },
   '(': { open: '(', close: ')' },
   '[': { open: '[', close: ']' },
   '{': { open: '{', close: '}' },
   '<': { open: '<', close: '>' }
 };
+
+const TEXT_OBJECT_CLOSE_PAIRS: Record<string, DelimiterPair> = {
+  ')': TEXT_OBJECT_PAIRS['('],
+  ']': TEXT_OBJECT_PAIRS['['],
+  '}': TEXT_OBJECT_PAIRS['{'],
+  '>': TEXT_OBJECT_PAIRS['<']
+};
+
+export function getTextObjectRegisterMirrors(operationKey: string, registerKey: string): string[] {
+  const mirrors = new Set<string>([registerKey]);
+
+  if (operationKey === MIV_KEYS.operators.yank) {
+    mirrors.add('0');
+    mirrors.add('9');
+  }
+
+  if (operationKey === MIV_KEYS.operators.delete) {
+    mirrors.add('8');
+  }
+
+  return [...mirrors];
+}
 
 async function executeTextObjectOperation(command: ParsedCommand, state: import('../state').MivState, hooks?: DispatchHooks): Promise<void> {
   const editor = vscode.window.activeTextEditor;
@@ -375,7 +408,9 @@ async function executeTextObjectOperation(command: ParsedCommand, state: import(
 
   if (operationKey === MIV_KEYS.operators.yank) {
     await vscode.env.clipboard.writeText(selectedText);
-    storeRegister(state, registerKey, selectedText, 'charwise');
+    for (const key of getTextObjectRegisterMirrors(operationKey, registerKey)) {
+      storeRegister(state, key, selectedText, 'charwise');
+    }
     hooks?.onYank?.(editor, range);
     hooks?.onStatusMessage?.(`stored yank in register ${registerKey}`);
     return;
@@ -385,7 +420,9 @@ async function executeTextObjectOperation(command: ParsedCommand, state: import(
     await editor.edit((editBuilder) => {
       editBuilder.delete(range);
     });
-    storeRegister(state, registerKey, selectedText, 'charwise');
+    for (const key of getTextObjectRegisterMirrors(operationKey, registerKey)) {
+      storeRegister(state, key, selectedText, 'charwise');
+    }
     hooks?.onStatusMessage?.(`stored delete in register ${registerKey}`);
     return;
   }
@@ -421,11 +458,18 @@ function isEscaped(text: string, index: number): boolean {
   return backslashCount % 2 === 1;
 }
 
-function findTextObjectBounds(
+export function findTextObjectBounds(
   text: string,
   cursorOffset: number,
   objectKey: string
 ): { openOffset: number; closeOffset: number } | undefined {
+  if (objectKey === MIV_KEYS.textObjects.auto) {
+    const directMatch = findAutoTextObjectBoundsAtCursor(text, cursorOffset);
+    if (directMatch) {
+      return directMatch;
+    }
+  }
+
   for (let openOffset = cursorOffset - 1; openOffset >= 0; openOffset -= 1) {
     const pair = getTextObjectPairAtOffset(text, openOffset, objectKey);
     if (!pair) {
@@ -438,6 +482,55 @@ function findTextObjectBounds(
     }
 
     return { openOffset, closeOffset };
+  }
+
+  return undefined;
+}
+
+function findAutoTextObjectBoundsAtCursor(
+  text: string,
+  cursorOffset: number
+): { openOffset: number; closeOffset: number } | undefined {
+  if (cursorOffset < 0 || cursorOffset >= text.length) {
+    return undefined;
+  }
+
+  const char = text[cursorOffset];
+  const pair = TEXT_OBJECT_PAIRS[char] ?? TEXT_OBJECT_CLOSE_PAIRS[char];
+  if (!pair) {
+    return undefined;
+  }
+
+  if (pair.open === pair.close) {
+    if (isEscaped(text, cursorOffset)) {
+      return undefined;
+    }
+
+    const rightClose = findFirstCloseOffset(text, cursorOffset + 1, pair);
+    if (rightClose !== undefined) {
+      return { openOffset: cursorOffset, closeOffset: rightClose };
+    }
+
+    const leftOpen = findLastOpenOffset(text, cursorOffset - 1, pair);
+    if (leftOpen !== undefined) {
+      return { openOffset: leftOpen, closeOffset: cursorOffset };
+    }
+
+    return undefined;
+  }
+
+  if (char === pair.open) {
+    const closeOffset = findFirstCloseOffset(text, cursorOffset + 1, pair);
+    if (closeOffset !== undefined) {
+      return { openOffset: cursorOffset, closeOffset };
+    }
+  }
+
+  if (char === pair.close) {
+    const openOffset = findLastOpenOffset(text, cursorOffset - 1, pair);
+    if (openOffset !== undefined) {
+      return { openOffset, closeOffset: cursorOffset };
+    }
   }
 
   return undefined;
@@ -470,6 +563,22 @@ function getTextObjectPairAtOffset(text: string, offset: number, objectKey: stri
 function findFirstCloseOffset(text: string, startOffset: number, pair: DelimiterPair): number | undefined {
   for (let index = startOffset; index < text.length; index += 1) {
     if (text[index] !== pair.close) {
+      continue;
+    }
+
+    if (pair.open === pair.close && isEscaped(text, index)) {
+      continue;
+    }
+
+    return index;
+  }
+
+  return undefined;
+}
+
+function findLastOpenOffset(text: string, startOffset: number, pair: DelimiterPair): number | undefined {
+  for (let index = startOffset; index >= 0; index -= 1) {
+    if (text[index] !== pair.open) {
       continue;
     }
 

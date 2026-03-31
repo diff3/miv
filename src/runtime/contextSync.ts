@@ -12,6 +12,9 @@ export function createContextSync(options: {
   updateStatusBar: () => void;
 }): ContextSync {
   const syncInputs = async (state: MivState): Promise<void> => {
+    options.updateStatusBar();
+    await vscode.commands.executeCommand('setContext', 'miv.prefixInputActive', state.prefixInputActive);
+    await vscode.commands.executeCommand('setContext', 'miv.commandInputActive', state.commandInputActive);
     await vscode.commands.executeCommand('setContext', 'miv.searchActive', state.searchActive);
     await vscode.commands.executeCommand('setContext', 'miv.replaceRuleInputActive', state.replaceRuleInputActive);
     await vscode.commands.executeCommand('setContext', 'miv.replaceCharPending', state.replaceCharPending);
@@ -22,9 +25,9 @@ export function createContextSync(options: {
       void syncInputs(state);
     },
     async syncMode(mode: MivMode): Promise<void> {
+      options.updateStatusBar();
       await vscode.commands.executeCommand('setContext', 'miv.mode', mode);
       await options.updateCursor(mode);
-      options.updateStatusBar();
     },
     syncInputs
   };

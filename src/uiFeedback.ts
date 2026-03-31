@@ -6,7 +6,7 @@
  */
 import * as vscode from 'vscode';
 import { CONFIG, MIV_MODES } from './config';
-import type { MivMode } from './state';
+import type { MivMode, MivState } from './state';
 
 export interface UiFeedback {
   showCommandPreview: (text?: string) => void;
@@ -27,7 +27,7 @@ export interface UiFeedback {
  *   UiFeedback facade used by extension.ts command wiring.
  */
 export function createUiFeedback(options: {
-  getMode: () => MivMode;
+  getState: () => Pick<MivState, 'mode' | 'prefixInputActive' | 'commandInputActive' | 'replaceCharPending'>;
   yankHighlightDuration: number;
 }): UiFeedback {
   let previewText: string | undefined;
@@ -40,18 +40,39 @@ export function createUiFeedback(options: {
     backgroundColor: 'rgba(180,200,255,0.3)'
   });
 
-  const renderStatus = (): void => {
-    const mode = options.getMode();
-    const activeText = previewText ?? messageText;
+  const getStatusLabel = (): string => {
+    const state = options.getState();
 
-    modeStatusBar.text = `MIV ${mode}`;
+    if (state.commandInputActive) {
+      return 'MIN SUFIX';
+    }
+
+    if (state.prefixInputActive || state.replaceCharPending) {
+      return 'MIN MOD';
+    }
+
+    if (state.mode === MIV_MODES.INSERT) {
+      return 'MIN INSERT';
+    }
+
+    return 'MIN NAV';
+  };
+
+  const renderModeStatus = (): void => {
+    const state = options.getState();
+
+    modeStatusBar.text = getStatusLabel();
     modeStatusBar.command = 'miv.openMenu';
     modeStatusBar.tooltip = 'Open MIV menu';
-    modeStatusBar.backgroundColor = mode === MIV_MODES.NAV
+    modeStatusBar.backgroundColor = state.mode === MIV_MODES.NAV && !state.prefixInputActive && !state.commandInputActive && !state.replaceCharPending
       ? undefined
       : new vscode.ThemeColor('statusBarItem.warningBackground');
     modeStatusBar.color = undefined;
     modeStatusBar.show();
+  };
+
+  const renderCommandStatus = (): void => {
+    const activeText = previewText ?? messageText;
 
     if (!activeText) {
       commandStatusBar.hide();
@@ -67,7 +88,7 @@ export function createUiFeedback(options: {
 
   const showCommandPreview = (text?: string): void => {
     previewText = text && text.length > 0 ? text : undefined;
-    renderStatus();
+    renderCommandStatus();
   };
 
   const showMessage = (text: string): void => {
@@ -76,11 +97,11 @@ export function createUiFeedback(options: {
       messageTimer = undefined;
     }
     messageText = text;
-    renderStatus();
+    renderCommandStatus();
     messageTimer = setTimeout(() => {
       messageText = undefined;
       messageTimer = undefined;
-      renderStatus();
+      renderCommandStatus();
     }, CONFIG.timeouts.statusMessage);
   };
 
@@ -96,7 +117,7 @@ export function createUiFeedback(options: {
     showCommandPreview,
     showMessage,
     flashYank,
-    updateStatusBar: renderStatus,
+    updateStatusBar: renderModeStatus,
     disposables: [modeStatusBar, commandStatusBar, yankDecoration]
   };
 }

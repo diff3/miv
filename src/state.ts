@@ -5,7 +5,7 @@
  * dispatcher hooks, and register UI.
  */
 import * as vscode from 'vscode';
-import { MIV_MODES, type MivMode as ConfigMivMode } from './config';
+import { MIV_KEYS, MIV_MODES, isDigitKey, type MivMode as ConfigMivMode } from './config';
 import type { ParsedCommand } from './parser';
 
 export type MivMode = ConfigMivMode;
@@ -27,10 +27,18 @@ export interface ReplaceRule {
   isRegex: boolean;
 }
 
+export const COMMAND_INPUT_KINDS = {
+  SEARCH_FORWARD: 'SEARCH_FORWARD',
+  SEARCH_BACKWARD: 'SEARCH_BACKWARD',
+  SEARCH_REGEX: 'SEARCH_REGEX',
+  REPLACE_RULE: 'REPLACE_RULE'
+} as const;
+
+export type CommandInputKind = (typeof COMMAND_INPUT_KINDS)[keyof typeof COMMAND_INPUT_KINDS];
+
 export const RAW_INPUT_MODES = {
   NONE: 'NONE',
-  SEARCH: 'SEARCH',
-  REPLACE_RULE: 'REPLACE_RULE',
+  COMMAND: 'COMMAND',
   REPLACE_CHAR: 'REPLACE_CHAR'
 } as const;
 
@@ -40,9 +48,19 @@ export interface MivState {
   mode: MivMode;
   lastCommand?: ParsedCommand;
   anchorPosition?: AnchorPosition;
+  anchorTogglePosition?: AnchorPosition;
   registers: Record<string, RegisterValue>;
   registerViewerActive: boolean;
   rawInputMode: RawInputMode;
+  prefixInputActive: boolean;
+  prefixCount: string;
+  prefixRegister?: string;
+  prefixOperator?: string;
+  prefixSeparatorSeen: boolean;
+  commandInputActive: boolean;
+  commandInputKind?: CommandInputKind;
+  commandPrefix: string;
+  commandBuffer: string;
   replaceCharPending: boolean;
   replaceRule?: ReplaceRule;
   replaceRuleInputActive: boolean;
@@ -82,8 +100,18 @@ export function createInitialState(): MivState {
     mode: MIV_MODES.NAV,
     lastCommand: undefined,
     anchorPosition: undefined,
+    anchorTogglePosition: undefined,
     registerViewerActive: false,
     rawInputMode: RAW_INPUT_MODES.NONE,
+    prefixInputActive: false,
+    prefixCount: '',
+    prefixRegister: undefined,
+    prefixOperator: undefined,
+    prefixSeparatorSeen: false,
+    commandInputActive: false,
+    commandInputKind: undefined,
+    commandPrefix: '',
+    commandBuffer: '',
     replaceCharPending: false,
     replaceRule: undefined,
     replaceRuleInputActive: false,
@@ -157,10 +185,118 @@ export function setInsertMode(state: MivState): void {
  */
 export function setRawInputMode(state: MivState, mode: RawInputMode): void {
   state.rawInputMode = mode;
-  state.searchActive = mode === RAW_INPUT_MODES.SEARCH;
-  state.searchInputActive = mode === RAW_INPUT_MODES.SEARCH;
-  state.replaceRuleInputActive = mode === RAW_INPUT_MODES.REPLACE_RULE;
+  if (mode !== RAW_INPUT_MODES.COMMAND) {
+    state.commandInputActive = false;
+    state.commandInputKind = undefined;
+    state.commandPrefix = '';
+    state.commandBuffer = '';
+  }
+  state.searchActive = false;
+  state.searchInputActive = false;
+  state.replaceRuleInputActive = false;
   state.replaceCharPending = mode === RAW_INPUT_MODES.REPLACE_CHAR;
+}
+
+export function clearPrefixInput(state: MivState): void {
+  state.prefixInputActive = false;
+  state.prefixCount = '';
+  state.prefixRegister = undefined;
+  state.prefixOperator = undefined;
+  state.prefixSeparatorSeen = false;
+}
+
+export function updatePrefixInput(state: MivState, buffer: string): void {
+  clearPrefixInput(state);
+
+  if (buffer.length === 0) {
+    return;
+  }
+
+  const countOnlyMatch = buffer.match(/^([1-9][0-9]*)$/);
+  if (countOnlyMatch) {
+    state.prefixInputActive = true;
+    state.prefixCount = countOnlyMatch[1];
+    return;
+  }
+
+  const countSeparatorMatch = buffer.match(/^([1-9][0-9]*)\s$/);
+  if (countSeparatorMatch) {
+    state.prefixInputActive = true;
+    state.prefixCount = countSeparatorMatch[1];
+    state.prefixSeparatorSeen = true;
+    return;
+  }
+
+  const countRegisterMatch = buffer.match(/^([1-9][0-9]*)\s([1-9])$/);
+  if (countRegisterMatch) {
+    state.prefixInputActive = true;
+    state.prefixCount = countRegisterMatch[1];
+    state.prefixRegister = countRegisterMatch[2];
+    state.prefixSeparatorSeen = true;
+    return;
+  }
+
+  if (buffer.length === 1 && buffer === MIV_KEYS.operators.yank) {
+    state.prefixInputActive = true;
+    state.prefixOperator = buffer;
+    return;
+  }
+
+  if (buffer.length === 1 && buffer === MIV_KEYS.operators.delete) {
+    state.prefixInputActive = true;
+    state.prefixOperator = buffer;
+    return;
+  }
+
+  if (buffer.length >= 2 && isDigitKey(buffer[0]) && buffer[0] !== '0' && buffer[buffer.length - 1] === ' ') {
+    state.prefixInputActive = true;
+    state.prefixCount = buffer.slice(0, -1);
+    state.prefixSeparatorSeen = true;
+  }
+}
+
+export function startCommandInput(state: MivState, kind: CommandInputKind, prefix: string): void {
+  clearPrefixInput(state);
+  state.rawInputMode = RAW_INPUT_MODES.COMMAND;
+  state.commandInputActive = true;
+  state.commandInputKind = kind;
+  state.commandPrefix = prefix;
+  state.commandBuffer = '';
+  state.searchActive = kind === COMMAND_INPUT_KINDS.SEARCH_FORWARD
+    || kind === COMMAND_INPUT_KINDS.SEARCH_BACKWARD
+    || kind === COMMAND_INPUT_KINDS.SEARCH_REGEX;
+  state.searchInputActive = state.searchActive;
+  state.replaceRuleInputActive = kind === COMMAND_INPUT_KINDS.REPLACE_RULE;
+  state.replaceCharPending = false;
+}
+
+export function stopCommandInput(state: MivState): void {
+  setRawInputMode(state, RAW_INPUT_MODES.NONE);
+}
+
+/**
+ * Reset transient interactive state while preserving long-lived session data.
+ *
+ * Preserved:
+ *   registers, anchor position, repeat/search history, and highlight enablement.
+ *
+ * Cleared:
+ *   active raw-input modes, previews, replace/search working state, and
+ *   current match tracking.
+ */
+export function resetTransientState(state: MivState): void {
+  state.registerViewerActive = false;
+  clearPrefixInput(state);
+  setRawInputMode(state, RAW_INPUT_MODES.NONE);
+  state.replaceRule = undefined;
+  state.replaceRuleBuffer = '';
+  state.search = undefined;
+  state.searchBuffer = '';
+  state.searchHighlightVisible = false;
+  state.lastMatchList = [];
+  state.lastMatchLengths = [];
+  state.currentMatchIndex = -1;
+  state.lastMatchPattern = '';
 }
 
 /**

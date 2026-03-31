@@ -20,7 +20,7 @@ import { dispatchCommand, getCommandUsageStatsSnapshot } from './dispatcher';
 import type { ParsedCommand } from './parser';
 import { showRegisterViewer } from './registerViewer';
 import { createContextSync } from './runtime/contextSync';
-import { createInputRouter } from './runtime/inputRouter';
+import { createInputRouter, type InputRouter } from './runtime/inputRouter';
 import { createReplaceController } from './runtime/replaceController';
 import { createSearchController } from './runtime/searchController';
 import { createUiFeedback } from './uiFeedback';
@@ -44,7 +44,6 @@ const HANDLE_KEY_FORWARD_COMMANDS = [
   { command: 'miv.deleteToLineEnd', key: 'shift+keyb' },
   { command: 'miv.deleteWord', key: 'shift+keyx' },
   { command: 'miv.yankWord', key: 'shift+keyy' },
-  { command: 'miv.spaceInput', key: ' ' },
   { command: 'miv.textObjectAuto', key: '!' },
   { command: 'miv.textObjectDoubleQuote', key: '"' },
   { command: 'miv.textObjectSingleQuote', key: "'" },
@@ -56,7 +55,6 @@ const HANDLE_KEY_FORWARD_COMMANDS = [
   { command: 'miv.replaceWord', key: 'shift+keyr' },
   { command: 'miv.toggleCaseChar', key: 'backquote' },
   { command: 'miv.toggleCaseWord', key: 'shift+backquote' },
-  { command: 'miv.repeatLastCommand', key: 'keyc' },
   { command: 'miv.repeatLastCommandAlias', key: '.' },
   { command: 'miv.enterInsert', key: 'keyi' },
   { command: 'miv.insertAtLineStart', key: 'shift+keyi' },
@@ -89,6 +87,7 @@ const HANDLE_KEY_FORWARD_COMMANDS = [
   { command: 'miv.searchNext', key: 'keyn' },
   { command: 'miv.searchPrevious', key: 'shift+keyn' },
   { command: 'miv.gotoLine', key: 'keyg' },
+  { command: 'miv.documentMiddle', key: 'keym' },
   { command: 'miv.documentBottom', key: 'shift+keyg' }
 ] as const;
 
@@ -114,9 +113,10 @@ export function activate(context: vscode.ExtensionContext): void {
   let previewBuffer = '';
   let lastClipboard = '';
   let fallbackTimer: NodeJS.Timeout | undefined;
+  let inputRouter: InputRouter | undefined;
 
   const ui = createUiFeedback({
-    getMode: () => state.mode,
+    getState: () => state,
     yankHighlightDuration: CONFIG.timeouts.yankHighlight
   });
 
@@ -128,18 +128,44 @@ export function activate(context: vscode.ExtensionContext): void {
     return undefined;
   };
 
+  const getActiveAnchorPosition = (editor: vscode.TextEditor): { uri: string; position: vscode.Position } => ({
+    uri: editor.document.uri.toString(),
+    position: editor.selection.active
+  });
+
+  const isSameAnchorPosition = (
+    left: { uri: string; position: vscode.Position } | undefined,
+    right: { uri: string; position: vscode.Position } | undefined
+  ): boolean => {
+    return Boolean(
+      left
+      && right
+      && left.uri === right.uri
+      && left.position.line === right.position.line
+      && left.position.character === right.position.character
+    );
+  };
+
   const clearFallbackTimer = (): void => {
     fallbackTimer = clearTimer(fallbackTimer);
   };
 
   const resetInputState = (): void => {
-    // Full reset is used when a command boundary is reached.
+    // Reset local command-preview plumbing without touching session history.
     clearFallbackTimer();
     inputBuffer = [];
     previewBuffer = '';
-    setRawInputMode(state, 'NONE');
-    state.replaceRuleBuffer = '';
     ui.showCommandPreview(undefined);
+  };
+
+  const resetInteractiveState = (): void => {
+    resetInputState();
+    state.registerViewerActive = false;
+    setRawInputMode(state, 'NONE');
+    state.search = undefined;
+    state.searchBuffer = '';
+    state.replaceRuleBuffer = '';
+    inputRouter?.clear();
   };
 
   const updateCursor = async (mode: MivMode): Promise<void> => {
@@ -155,14 +181,16 @@ export function activate(context: vscode.ExtensionContext): void {
   const syncInputContexts = async (): Promise<void> => contextSync.syncInputs(state);
 
   const setNav = async (): Promise<void> => {
-    resetInputState();
     setNavMode(state);
+    resetInteractiveState();
+    ui.updateStatusBar();
     await syncModeFeedback();
   };
 
   const setInsert = async (): Promise<void> => {
-    resetInputState();
     setInsertMode(state);
+    resetInteractiveState();
+    ui.updateStatusBar();
     await syncModeFeedback();
   };
 
@@ -171,10 +199,6 @@ export function activate(context: vscode.ExtensionContext): void {
     updateStatusBar: ui.updateStatusBar
   });
   contextSync.initialize(state);
-
-  const updateReplaceRulePreview = (): void => {
-    ui.showCommandPreview(state.replaceRuleInputActive ? state.replaceRuleBuffer : undefined);
-  };
 
   const syncClipboardMirror = async (typeOverride?: RegisterType): Promise<void> => {
     const clipboardValue = await vscode.env.clipboard.readText();
@@ -239,6 +263,69 @@ export function activate(context: vscode.ExtensionContext): void {
       lines.push(`${key.padEnd(width + 2)}${count}`);
     }
     return lines;
+  };
+
+  const isBlankDocumentLine = (editor: vscode.TextEditor, line: number): boolean => {
+    return editor.document.lineAt(line).text.trim().length === 0;
+  };
+
+  const jumpParagraph = async (direction: 'backward' | 'forward'): Promise<void> => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      return;
+    }
+
+    const lastLine = editor.document.lineCount - 1;
+    if (lastLine < 0) {
+      return;
+    }
+
+    let line = editor.selection.active.line;
+
+    if (direction === 'forward') {
+      if (isBlankDocumentLine(editor, line)) {
+        while (line <= lastLine && isBlankDocumentLine(editor, line)) {
+          line += 1;
+        }
+      } else {
+        while (line <= lastLine && !isBlankDocumentLine(editor, line)) {
+          line += 1;
+        }
+        while (line <= lastLine && isBlankDocumentLine(editor, line)) {
+          line += 1;
+        }
+      }
+
+      if (line > lastLine) {
+        return;
+      }
+    } else {
+      if (isBlankDocumentLine(editor, line)) {
+        while (line >= 0 && isBlankDocumentLine(editor, line)) {
+          line -= 1;
+        }
+      } else {
+        while (line >= 0 && !isBlankDocumentLine(editor, line)) {
+          line -= 1;
+        }
+        while (line >= 0 && isBlankDocumentLine(editor, line)) {
+          line -= 1;
+        }
+      }
+
+      if (line < 0) {
+        line = 0;
+      } else {
+        while (line > 0 && !isBlankDocumentLine(editor, line - 1)) {
+          line -= 1;
+        }
+      }
+    }
+
+    const target = new vscode.Position(line, 0);
+    const selection = new vscode.Selection(target, target);
+    editor.selection = selection;
+    editor.revealRange(selection);
   };
 
   void syncModeFeedback();
@@ -322,6 +409,10 @@ export function activate(context: vscode.ExtensionContext): void {
   const replaceController = createReplaceController({
     state,
     syncInputs: syncInputContexts,
+    ensureNavMode: async () => {
+      setNavMode(state);
+      await syncModeFeedback();
+    },
     ui,
     setLastCommand: (command) => setLastCommand(state, command),
     clearBufferedInput: () => {
@@ -339,7 +430,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
 
-  const inputRouter = createInputRouter({
+  inputRouter = createInputRouter({
     state,
     ui,
     searchController,
@@ -348,9 +439,18 @@ export function activate(context: vscode.ExtensionContext): void {
     toInputToken,
     setInsert,
     runParsedCommand,
+    syncInputs: syncInputContexts,
     setLastCommand: (command) => setLastCommand(state, command),
     isAllowedRegisterViewerKey: (key) => isDigitKey(key)
   });
+
+  const hardResetToNav = async (): Promise<void> => {
+    state.searchHighlightVisible = false;
+    searchController.clearHighlights();
+    await vscode.commands.executeCommand('closeFindWidget');
+    resetInteractiveState();
+    await setNav();
+  };
 
   const isAllowedRegisterViewerKey = (key: string): boolean => {
     return isDigitKey(key);
@@ -385,34 +485,11 @@ export function activate(context: vscode.ExtensionContext): void {
       ui.showMessage('search highlight enabled');
     }),
     vscode.commands.registerCommand('miv.toNavMode', async () => {
-      if (state.searchActive) {
-        state.searchHighlightVisible = false;
-        searchController.clearHighlights();
-        searchController.cancelSearch();
-        return;
-      }
-
-      if (state.replaceRuleInputActive) {
-        replaceController.cancelReplaceRule();
-        return;
-      }
-
-      if (state.replaceCharPending) {
-        await replaceController.cancelReplaceChar();
-        return;
-      }
-
-      state.searchHighlightVisible = false;
-      searchController.clearHighlights();
-      await setNav();
+      await hardResetToNav();
     }),
     vscode.commands.registerCommand('miv.searchBackspace', async () => {
       if (state.replaceRuleInputActive) {
-        state.replaceRuleBuffer = state.replaceRuleBuffer.slice(0, -1);
-        if (state.replaceRuleBuffer.length === 0) {
-          state.replaceRuleBuffer = MIV_KEYS.commands.replaceMatches;
-        }
-        updateReplaceRulePreview();
+        replaceController.backspaceReplaceRule();
         return;
       }
 
@@ -549,18 +626,38 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       setAnchorFromEditor(state, editor);
+      state.anchorTogglePosition = undefined;
     }),
     vscode.commands.registerCommand('miv.jumpToAnchor', async () => {
       if (!state.anchorPosition) {
         return;
       }
 
-      const uri = vscode.Uri.parse(state.anchorPosition.uri);
+      const activeEditor = vscode.window.activeTextEditor;
+      const currentPosition = activeEditor ? getActiveAnchorPosition(activeEditor) : undefined;
+      const jumpingFromAnchor = isSameAnchorPosition(currentPosition, state.anchorPosition);
+      const targetPosition = jumpingFromAnchor && state.anchorTogglePosition
+        ? state.anchorTogglePosition
+        : state.anchorPosition;
+
+      if (!jumpingFromAnchor && currentPosition) {
+        state.anchorTogglePosition = currentPosition;
+      }
+
+      const uri = vscode.Uri.parse(targetPosition.uri);
       const document = await vscode.workspace.openTextDocument(uri);
       const editor = await vscode.window.showTextDocument(document);
-      const selection = new vscode.Selection(state.anchorPosition.position, state.anchorPosition.position);
+      const selection = new vscode.Selection(targetPosition.position, targetPosition.position);
       editor.selection = selection;
       editor.revealRange(selection);
+    }),
+    vscode.commands.registerCommand('miv.paragraphBackward', async () => {
+      resetInputState();
+      await jumpParagraph('backward');
+    }),
+    vscode.commands.registerCommand('miv.paragraphForward', async () => {
+      resetInputState();
+      await jumpParagraph('forward');
     }),
     vscode.commands.registerCommand('miv.showCommandStats', async () => {
       const stats = getCommandUsageStatsSnapshot();

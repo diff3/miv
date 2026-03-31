@@ -1,6 +1,6 @@
 import { CONFIG, MIV_KEYS, MIV_MODES, TOKENS, getSequenceValueForToken, isDigitKey } from '../config';
 import { parseInput, type ParsedCommand } from '../parser';
-import { RAW_INPUT_MODES, type MivState } from '../state';
+import { COMMAND_INPUT_KINDS, RAW_INPUT_MODES, clearPrefixInput, updatePrefixInput, type MivState } from '../state';
 import type { UiFeedback } from '../uiFeedback';
 import type { ReplaceController } from './replaceController';
 import type { SearchController } from './searchController';
@@ -20,6 +20,7 @@ export function createInputRouter(options: {
   toInputToken: (inputKey: string) => string | undefined;
   setInsert: () => Promise<void>;
   runParsedCommand: (parsed: ParsedCommand) => Promise<void>;
+  syncInputs: () => Promise<void>;
   setLastCommand: (command: ParsedCommand) => void;
   isAllowedRegisterViewerKey: (key: string) => boolean;
 }): InputRouter {
@@ -38,7 +39,9 @@ export function createInputRouter(options: {
     clearFallbackTimer();
     inputBuffer = [];
     previewBuffer = '';
+    clearPrefixInput(options.state);
     options.ui.showCommandPreview(undefined);
+    void options.syncInputs();
   };
 
   const getPreviewText = (text: string): string => {
@@ -54,6 +57,56 @@ export function createInputRouter(options: {
   };
 
   const getRawInputMode = (): string => options.state.rawInputMode;
+
+  const runImmediateInsertCommand = async (inputToken: string): Promise<boolean> => {
+    if (options.state.mode !== MIV_MODES.NAV) {
+      return false;
+    }
+
+    if (inputToken === TOKENS.INSERT) {
+      clear();
+      await options.setInsert();
+      return true;
+    }
+
+    if (inputToken === TOKENS.INSERT_LINE_START) {
+      clear();
+      await options.runParsedCommand({
+        sequence: MIV_KEYS.commands.insertLineStart,
+        action: 'insertAtLineStart'
+      });
+      return true;
+    }
+
+    if (inputToken === TOKENS.INSERT_LINE_END) {
+      clear();
+      await options.runParsedCommand({
+        sequence: MIV_KEYS.commands.insertLineEnd,
+        action: 'insertAtLineEnd'
+      });
+      return true;
+    }
+
+    if (inputToken === TOKENS.OPEN_LINE_BELOW) {
+      clear();
+      await options.runParsedCommand({
+        sequence: MIV_KEYS.commands.openLineBelow,
+        action: 'openLineBelow'
+      });
+      return true;
+    }
+
+    if (inputToken === TOKENS.OPEN_LINE_ABOVE) {
+      clear();
+      await options.runParsedCommand({
+        sequence: MIV_KEYS.commands.openLineAbove,
+        action: 'openLineAbove'
+      });
+      return true;
+    }
+
+    return false;
+  };
 
   return {
     clear,
@@ -72,19 +125,31 @@ export function createInputRouter(options: {
       }
 
       switch (getRawInputMode()) {
-        case RAW_INPUT_MODES.REPLACE_RULE:
+        case RAW_INPUT_MODES.COMMAND:
           if (key === MIV_KEYS.mode.enter || key === MIV_KEYS.mode.carriageReturn) {
-            await options.replaceController.commitReplaceRule();
+            if (options.state.commandInputKind === COMMAND_INPUT_KINDS.REPLACE_RULE) {
+              await options.replaceController.commitReplaceRule();
+              return;
+            }
+
+            await options.searchController.commitSearch();
             return;
           }
 
-          options.replaceController.appendReplaceRuleChar(key);
-          return;
-        case RAW_INPUT_MODES.SEARCH:
+          if (key.length !== 1) {
+            return;
+          }
+
+          if (options.state.commandInputKind === COMMAND_INPUT_KINDS.REPLACE_RULE) {
+            options.replaceController.appendReplaceRuleChar(key);
+            return;
+          }
+
           await options.searchController.appendCharacter(key);
           return;
         case RAW_INPUT_MODES.REPLACE_CHAR:
           await options.replaceController.handleReplaceChar(key);
+          clear();
           return;
         default:
           break;
@@ -105,6 +170,11 @@ export function createInputRouter(options: {
         return;
       }
 
+      if (options.state.mode === MIV_MODES.NAV && key === MIV_KEYS.commands.replaceMatches) {
+        await options.replaceController.startReplaceRule();
+        return;
+      }
+
       if (key === MIV_KEYS.mode.enter || key === MIV_KEYS.mode.carriageReturn) {
         if (options.replaceController.canApplyActiveReplaceRule()) {
           await options.replaceController.applyReplaceRule();
@@ -115,16 +185,15 @@ export function createInputRouter(options: {
           return;
         }
 
+        if (options.state.mode === MIV_MODES.NAV) {
+          return;
+        }
+
         await options.defaultType(args);
         return;
       }
 
       if (key === MIV_KEYS.mode.enterInsert) {
-        if (options.state.mode === MIV_MODES.NAV && inputBuffer.length === 0) {
-          await options.setInsert();
-          return;
-        }
-
         if (options.state.mode === MIV_MODES.NAV) {
           await this.handleKeyInput(key);
           return;
@@ -140,6 +209,10 @@ export function createInputRouter(options: {
           return;
         }
 
+        if (await runImmediateInsertCommand(inputToken)) {
+          return;
+        }
+
         await this.handleKeyInput(inputToken);
         return;
       }
@@ -147,18 +220,14 @@ export function createInputRouter(options: {
       await options.defaultType(args);
     },
     async handleKeyInput(key: string): Promise<void> {
-      if (options.state.mode !== MIV_MODES.NAV || options.state.registerViewerActive) {
+      if (options.state.mode !== MIV_MODES.NAV || options.state.registerViewerActive || options.state.commandInputActive) {
         return;
       }
 
       switch (getRawInputMode()) {
-        case RAW_INPUT_MODES.SEARCH:
-          await options.searchController.appendCharacter(key);
-          return;
-        case RAW_INPUT_MODES.REPLACE_RULE:
-          return;
         case RAW_INPUT_MODES.REPLACE_CHAR:
           await options.replaceController.handleReplaceChar(key);
+          clear();
           return;
         default:
           break;
@@ -170,10 +239,6 @@ export function createInputRouter(options: {
       }
 
       clearFallbackTimer();
-      if (inputToken === TOKENS.SPACE && inputBuffer.length === 0) {
-        await options.setInsert();
-        return;
-      }
 
       if (inputToken === TOKENS.SEARCH_FORWARD && inputBuffer.length === 0) {
         await options.searchController.startSearch('forward');
@@ -197,6 +262,8 @@ export function createInputRouter(options: {
 
       inputBuffer.push(inputToken);
       previewBuffer += getSequenceValueForToken(inputToken);
+      updatePrefixInput(options.state, previewBuffer);
+      void options.syncInputs();
       options.ui.showCommandPreview(getPreviewText(previewBuffer));
 
       const result = parseInput(inputBuffer);

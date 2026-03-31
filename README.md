@@ -30,9 +30,9 @@ It focuses on:
 If you remember only this, you can already use MIV:
 
 - `ESC` -> go to `NAV`, MIV's command mode
-- `i` or `Space` -> go to `INSERT`, normal typing mode
+- `i` -> go to `INSERT`, normal typing mode
 - `w a s d` -> move
-- `g` / `G` -> jump to top or bottom
+- `g` / `m` / `G` -> jump to top, middle, or bottom
 - `x` -> delete one character
 - `b` -> delete the current line
 - `y` -> yank the current line
@@ -85,7 +85,7 @@ The idea is simple:
 - `INSERT` is for normal typing.
 - In `INSERT`, press `ESC` to return to `NAV`.
 - In `NAV`, press `i` to enter `INSERT`.
-- `Space` also enters `INSERT` when the command buffer is empty.
+- In `NAV`, `Enter` is handled by MIV and does not insert a new line.
 
 ## Status Bar
 MIV shows two things in the status bar:
@@ -98,7 +98,7 @@ Examples:
 - `/text`
 - `2p`
 - `rA`
-- `=bar foo`
+- `=foo bar`
 
 That second area is meant to show what you are typing right now, not generic hints.
 
@@ -108,12 +108,13 @@ Think in physical keys rather than locale-specific characters.
 - Movement: `a` left, `d` right, `w` up, `s` down
 - Bigger movement: `A`, `D`, `W`, `S`
 - Word movement: `q`, `e`, `Q`, `E`
-- Go to line: `g` for line 1, `[count]g` for a specific line, `G` for the document bottom
-- Back to typing: `i`, `Space`
+- Paragraph movement: `Alt+Q`, `Alt+E`
+- Go to line: `g` for line 1, `[count]g` for a specific line, `m` for 50% of the document, `1m..9m` for 10%..90%, `G` for the document bottom, `[count]G` for a line counted from the bottom
+- Back to typing: `i`
 - Delete: `x`, `b`, `X`, `B`
 - Yank and paste: `y`, `p`, `P`
 - Search: `/text`, `\text`, `n`, `N`
-- Replace: `=replacement search`
+- Replace: `=search replacement`
 
 ## Registers
 MIV has numbered registers `0..9`.
@@ -128,7 +129,7 @@ Basic register workflow:
 - `p` pastes from the default register
 - `P` pastes before the cursor
 - `2p` pastes from register `2`
-- `2P` pastes before the cursor from register `2`
+- `2P` pastes after the cursor from register `2`
 - `v` opens the register viewer
 
 You can think of registers as named clipboard slots.
@@ -150,7 +151,7 @@ Examples:
 - `5x` -> delete 5 characters
 - `5 3x` -> delete 5 characters into register `3`
 - `2p` -> paste from register `2`
-- `2P` -> paste before the cursor from register `2`
+- `2P` -> paste after the cursor from register `2`
 - `2v` -> store the current clipboard in register `2`
 
 You are not really "moving" data between registers with a separate transfer command.
@@ -174,19 +175,26 @@ Search starts from `NAV` mode.
 Replace builds on the last search:
 
 - `=bar` -> replace the current search matches with `bar`
-- `=bar foo` -> replace all `foo` with `bar`
+- `=foo bar` -> replace all `foo` with `bar`
 
 Examples:
 
 - `/user` then `=account`
 - `,\d+` then `=NUMBER`
 - `/foo` then `n` then `=bar`
+- `=foo bar`
 
 The command line in the status bar shows the command as you type it, for example:
 
 - `/foo`
 - `,\\d+`
-- `=bar foo`
+- `=foo bar`
+
+## Paragraph Movement
+- `Alt+Q` -> jump to the previous paragraph
+- `Alt+E` -> jump to the next paragraph
+- A paragraph is a block of non-empty lines
+- One or more empty lines between text blocks count as a single separator
 
 ## Full Key Summary
 
@@ -205,7 +213,10 @@ The command line in the status bar shows the command as you type it, for example
 - `E` -> move to the start of the next word on the right
 - `g` -> go to line 1
 - `[count]g` -> go to a specific line
+- `m` -> go to 50% of the document
+- `1m..9m` -> go to 10%..90% of the document
 - `G` -> go to the bottom of the document
+- `[count]G` -> go to the line that is `[count]` rows up from the bottom
 - Counts work with motions, for example `10w`, `5a`, `25g`
 
 ### Editing
@@ -219,12 +230,12 @@ The command line in the status bar shows the command as you type it, for example
 - `[count]y` -> yank multiple lines
 - `Y` -> yank the next word
 - `[count]Y` -> yank multiple words
-- `p` -> paste after the cursor
-- `P` -> paste before the cursor
-- `r<char>` -> replace the character under the cursor
+- `p` -> paste before the cursor
+- `P` -> paste after the cursor
+- `r<char>` -> replace the character under the cursor and return to `NAV`
 - `R` -> delete the current word and enter `INSERT`
 - `§` -> toggle case for the current character
-- `shift+§` -> toggle case for the current word
+- `°` -> toggle case for the current word
 - `-` -> change to the end of the line and enter `INSERT`
 - `_` -> change the whole line and enter `INSERT`
 - `%` -> jump to the matching bracket
@@ -234,7 +245,6 @@ The command line in the status bar shows the command as you type it, for example
 - `o` -> open a new line below and enter `INSERT`
 - `O` -> open a new line above and enter `INSERT`
 - `u` -> undo the previous change
-- `c` -> repeat the last repeatable command
 - `.` -> repeat the last repeatable command alias
 
 ### Search
@@ -246,15 +256,15 @@ The command line in the status bar shows the command as you type it, for example
 
 ### Replace
 - `=replacement` -> replace all matches for the last search pattern
-- `=replacement search` -> replace all matches for `search` with `replacement`
-- After a replace rule exists, `c` or `.` applies the current rule
+- `=search replacement` -> replace all matches for `search` with `replacement`
+- After a replace rule exists, `.` applies the current rule
 - After a replace rule exists, `Enter` in `NAV` applies the current rule to the current match
 
 ### Registers
-- `p` -> paste from the default register after the cursor
-- `P` -> paste from the default register before the cursor
+- `p` -> paste from the default register before the cursor
+- `P` -> paste from the default register after the cursor
 - `1p..9p` -> paste from a specific register
-- `1P..9P` -> paste before the cursor from a specific register
+- `1P..9P` -> paste after the cursor from a specific register
 - `[count] [register]y` -> yank lines into a register
 - `[count] [register]x` -> delete characters into a register
 - `v` -> open the register viewer
@@ -267,7 +277,6 @@ The command line in the status bar shows the command as you type it, for example
 - `(` -> parentheses object
 - `[` -> bracket object
 - `{` -> brace object
-- `<` -> angle bracket object
 
 Supported forms:
 
@@ -293,7 +302,7 @@ In some cases MIV intentionally replaces or remaps a key so it can use it for mo
 MIV-specific helper commands:
 
 - `Alt+z` -> set an anchor
-- `Alt+x` -> jump to the current anchor
+- `Alt+x` -> jump to the anchor, then toggle between anchor and the last jump origin
 
 MIV adds its own command layer on top, but it does not try to replace the rest of VS Code.
 

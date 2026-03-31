@@ -1,112 +1,43 @@
 # MIV Functional Checklist
 
-## Modes
+Use a scratch file with:
 
-- [ ] Startup enters `NAV`
-- [ ] `Space` enters `INSERT` from empty NAV buffer
-- [ ] `Esc` returns to `NAV`
-- [ ] NAV cursor is block
-- [ ] INSERT cursor is line
+## Modes And UI
 
 ## Motion
 
-- [ ] `a` left
-- [ ] `d` right
-- [ ] `w` up
-- [ ] `s` down
-- [ ] `W` page up
-- [ ] `S` page down
-- [ ] `A` line start
-- [ ] `D` line end
-- [ ] `q` word left
-- [ ] `e` word end right
-- [ ] `Q` word end left
-- [ ] `E` word start right
-- [ ] `10w` counted motion
-- [ ] `25g` goto line
-- [ ] `G` bottom of document
+## Insert Entry
 
 ## Editing
 
-- [ ] `x` delete char
-- [ ] `10x` delete counted chars
-- [ ] `X` delete word
-- [ ] `B` delete to line end
-- [ ] `b` delete line
-- [ ] `5b` delete counted lines
-- [ ] `y` yank line
-- [ ] `10y` yank counted lines
-- [ ] `Y` yank word
-- [ ] `p` paste after
-- [ ] `P` paste before
-- [ ] `r<char>` replace one char
-- [ ] `R` replace word and enter `INSERT`
-- [ ] `3R` replace counted words and enter `INSERT`
-- [ ] `§` toggle case at cursor
-- [ ] `5§` toggle case for counted chars
-- [ ] `shift+§` toggle case for current word
-- [ ] `3shift+§` toggle case for counted words
-- [ ] `-` change to line end
-- [ ] `_` change line
-- [ ] `%` jump bracket match
-- [ ] `&` join with next line
-- [ ] `i` enter `INSERT`
-- [ ] `I` line start + `INSERT`
-- [ ] `k` line end + `INSERT`
-- [ ] `o` open line below
-- [ ] `O` open line above
-- [ ] `u` undo
-- [ ] `c` repeat
-- [ ] `.` repeat alias
+- [x] `§` toggle case at cursor - vi kanske ska byta till <
+- [x] `5§` toggle counted chars  vi kanske ska byta till 5<
+- [x] `shift+§` toggle case for word - nej den verkar vara flyttat till shift + >
+- [x] `3shift+§` toggle counted words - ja, men den är flyttad till shift + > 
+- [x] `%` jump bracket match - ja men inte på ",
+- [x] `&` join with next line, borde fungera med J också
+- [x] `.` repeat alias - dock inte för alla kommandon
 
 ## Search
 
-- [ ] `/text` literal forward search
-- [ ] `\text` literal backward search
-- [ ] `,regex` regex search with `~` prompt
-- [ ] `n` next match
-- [ ] `N` previous match
-- [ ] highlights appear for matches
-- [ ] current match gets stronger highlight
-- [ ] search highlight toggle works
-- [ ] `Esc` clears visible highlights but keeps match state
+- [x] `ESC` clears visible highlights but keeps search history - nej den verkar inte fungera
 
-## Replace
+## Replace. {"hello"}, "world"
 
-- [ ] `=replacement` uses last search pattern
-- [ ] `=replacement search` uses explicit literal search text
-- [ ] `/foo` then `=bar` replaces all `foo`
-- [ ] `,\d+` then `=NUMBER` replaces all regex matches
-- [ ] replace shows `replaced X matches`
-- [ ] `Enter` in `NAV` applies current replace rule to current match
-- [ ] `c` / `.` reuse the current replace rule
+- [x] `.` re-applies current replace rule - jag funderar om om vi skall ta alla kommandon som inte är rörelse WASDQEM. en klassiker i vim. Den ska nog inte heller vara påverkad av searhc och replace
+- [x] Replace still dog after a dog literal search. 
+- [x] Replace still works after a previous regex search
+test
+
+Överlag tycker jag att history är lite konstig sedan vi ändrade beteende på ESC
 
 ## Registers
 
-- [ ] registers `0..9` exist
-- [ ] clipboard mirrors to register `9`
-- [ ] `1p..9p` paste specific register
-- [ ] `[count] [register]y` stores to target register
-- [ ] `[count] [register]x` stores to target register
-- [ ] register viewer opens with `v`
-- [ ] linewise register pastes as whole line
-- [ ] charwise register pastes inline
+## Text ObJects
+- [x] `!y`
+- [x] `" 3y`.   {"hello"}.    ['hello', 'world']
+- [x] `( 2x`
+- [x] `{ 5p`
+- [x] Simple delimiter scan works without nesting - den verkar fastna på en del saker som " så går den till något annat. som {}
 
-## Text Objects
-
-- [ ] `!y`
-- [ ] `!x`
-- [ ] `!p`
-- [ ] `" 3y`
-- [ ] `( 2x`
-- [ ] `{ 5p`
-- [ ] simple delimiter scan works without nesting
-
-## Helpers
-
-- [ ] `Alt+a` history back
-- [ ] `Alt+d` history forward
-- [ ] `Alt+z` set anchor
-- [ ] `Alt+x` jump to anchor
-- [ ] `Ctrl/Cmd+C` mirrors clipboard
-- [ ] `Ctrl/Cmd+V` uses MIV paste path
+## Helpers And VS Code Integration

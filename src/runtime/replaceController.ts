@@ -1,7 +1,15 @@
 import * as vscode from 'vscode';
 import { MIV_KEYS } from '../config';
 import { parseInput, type ParsedCommand } from '../parser';
-import { RAW_INPUT_MODES, setRawInputMode, type MivState, type ReplaceRule } from '../state';
+import {
+  COMMAND_INPUT_KINDS,
+  RAW_INPUT_MODES,
+  setRawInputMode,
+  startCommandInput,
+  stopCommandInput,
+  type MivState,
+  type ReplaceRule
+} from '../state';
 import type { UiFeedback } from '../uiFeedback';
 
 export interface ReplaceController {
@@ -10,6 +18,7 @@ export interface ReplaceController {
   cancelReplaceChar(): Promise<void>;
   startReplaceRule(): Promise<void>;
   appendReplaceRuleChar(key: string): void;
+  backspaceReplaceRule(): void;
   commitReplaceRule(): Promise<void>;
   cancelReplaceRule(): void;
   applyReplaceRule(): Promise<void>;
@@ -20,6 +29,7 @@ export interface ReplaceController {
 export function createReplaceController(options: {
   state: MivState;
   syncInputs: () => Promise<void>;
+  ensureNavMode: () => Promise<void>;
   ui: Pick<UiFeedback, 'showCommandPreview' | 'showMessage'>;
   setLastCommand: (command: ParsedCommand) => void;
   clearBufferedInput: () => void;
@@ -27,7 +37,10 @@ export function createReplaceController(options: {
   runReplaceCharCommand: (key: string) => Promise<void>;
 }): ReplaceController {
   const updateReplaceRulePreview = (): void => {
-    options.ui.showCommandPreview(options.state.replaceRuleInputActive ? options.state.replaceRuleBuffer : undefined);
+    const preview = options.state.commandInputActive && options.state.commandInputKind === COMMAND_INPUT_KINDS.REPLACE_RULE
+      ? `${options.state.commandPrefix}${options.state.commandBuffer}`
+      : undefined;
+    options.ui.showCommandPreview(preview);
   };
 
   const collectLiteralMatchOffsets = (text: string, pattern: string): number[] => {
@@ -91,40 +104,52 @@ export function createReplaceController(options: {
         return;
       }
 
-      if (key === 'escape' || key === MIV_KEYS.mode.enter || key === MIV_KEYS.mode.carriageReturn) {
+      if (key === 'escape' || key === MIV_KEYS.mode.enter || key === MIV_KEYS.mode.carriageReturn || key.length !== 1) {
         setRawInputMode(options.state, RAW_INPUT_MODES.NONE);
-        await options.syncInputs();
         options.clearBufferedInput();
-        return;
-      }
-
-      if (key.length !== 1) {
+        await options.syncInputs();
+        await options.ensureNavMode();
         return;
       }
 
       setRawInputMode(options.state, RAW_INPUT_MODES.NONE);
-      await options.syncInputs();
-      await options.runReplaceCharCommand(key);
       options.clearBufferedInput();
+      await options.syncInputs();
+      await options.ensureNavMode();
+      await options.runReplaceCharCommand(key);
     },
     async cancelReplaceChar(): Promise<void> {
       setRawInputMode(options.state, RAW_INPUT_MODES.NONE);
       await options.syncInputs();
       options.clearBufferedInput();
+      await options.ensureNavMode();
     },
     async startReplaceRule(): Promise<void> {
-      setRawInputMode(options.state, RAW_INPUT_MODES.REPLACE_RULE);
+      startCommandInput(options.state, COMMAND_INPUT_KINDS.REPLACE_RULE, MIV_KEYS.commands.replaceMatches);
       options.state.replaceRuleBuffer = MIV_KEYS.commands.replaceMatches;
       await options.syncInputs();
       updateReplaceRulePreview();
     },
     appendReplaceRuleChar(key: string): void {
+      options.state.commandBuffer += key;
       options.state.replaceRuleBuffer += key;
+      updateReplaceRulePreview();
+    },
+    backspaceReplaceRule(): void {
+      if (!options.state.replaceRuleInputActive) {
+        return;
+      }
+
+      options.state.commandBuffer = options.state.commandBuffer.slice(0, -1);
+      options.state.replaceRuleBuffer = options.state.replaceRuleBuffer.slice(0, -1);
+      if (options.state.replaceRuleBuffer.length === 0) {
+        options.state.replaceRuleBuffer = MIV_KEYS.commands.replaceMatches;
+      }
       updateReplaceRulePreview();
     },
     async commitReplaceRule(): Promise<void> {
       if (options.state.replaceRuleBuffer === MIV_KEYS.commands.replaceMatches) {
-        setRawInputMode(options.state, RAW_INPUT_MODES.NONE);
+        stopCommandInput(options.state);
         options.state.replaceRuleBuffer = '';
         await options.syncInputs();
         options.ui.showCommandPreview(undefined);
@@ -139,18 +164,41 @@ export function createReplaceController(options: {
         return;
       }
 
-      const replace = String(result.command.args?.[0] ?? '');
-      const explicitSearch = result.command.args?.[1] !== undefined ? String(result.command.args?.[1]) : undefined;
-      const search = explicitSearch ?? options.state.lastSearchPattern;
-      const isRegex = explicitSearch === undefined ? options.state.lastSearchIsRegex : false;
-      if (search.length === 0) {
+      const firstArg = String(result.command.args?.[0] ?? '');
+      const secondArg = result.command.args?.[1] !== undefined ? String(result.command.args?.[1]) : undefined;
+
+      let nextRule: ReplaceRule | undefined;
+      if (secondArg !== undefined) {
+        const editor = vscode.window.activeTextEditor;
+        const text = editor?.document.getText() ?? '';
+        const searchFirstRule: ReplaceRule = { search: firstArg, replace: secondArg, isRegex: false };
+        const legacyRule: ReplaceRule = { search: secondArg, replace: firstArg, isRegex: false };
+        const searchFirstMatches = collectMatchData(text, searchFirstRule.search, false)?.offsets.length ?? 0;
+        const legacyMatches = collectMatchData(text, legacyRule.search, false)?.offsets.length ?? 0;
+        nextRule = legacyMatches > searchFirstMatches ? legacyRule : searchFirstRule;
+      } else {
+        const search = options.state.lastSearchPattern;
+        if (search.length === 0) {
+          options.ui.showMessage('no previous search');
+          this.cancelReplaceRule();
+          return;
+        }
+
+        nextRule = {
+          search,
+          replace: firstArg,
+          isRegex: options.state.lastSearchIsRegex
+        };
+      }
+
+      if (!nextRule || nextRule.search.length === 0) {
         options.ui.showMessage('no previous search');
         this.cancelReplaceRule();
         return;
       }
 
-      options.state.replaceRule = { replace, search, isRegex };
-      setRawInputMode(options.state, RAW_INPUT_MODES.NONE);
+      options.state.replaceRule = nextRule;
+      stopCommandInput(options.state);
       options.state.replaceRuleBuffer = '';
       await options.syncInputs();
       options.ui.showCommandPreview(undefined);
@@ -162,7 +210,7 @@ export function createReplaceController(options: {
       });
     },
     cancelReplaceRule(): void {
-      setRawInputMode(options.state, RAW_INPUT_MODES.NONE);
+      stopCommandInput(options.state);
       options.state.replaceRuleBuffer = '';
       void options.syncInputs();
       options.ui.showCommandPreview(undefined);
@@ -270,8 +318,7 @@ export function createReplaceController(options: {
     canApplyActiveReplaceRule(): boolean {
       return Boolean(
         options.state.mode === 'NAV'
-        && !options.state.searchActive
-        && !options.state.replaceRuleInputActive
+        && !options.state.commandInputActive
         && options.state.replaceRule
         && options.state.lastMatchList.length > 0
         && options.state.currentMatchIndex >= 0

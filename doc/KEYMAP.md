@@ -6,8 +6,8 @@ This document contains the full MIV command list and the behavior of each comman
 
 - `ESC` enters `NAV`, MIV's command mode.
 - `i` enters `INSERT`, normal typing mode.
-- `Space` enters `INSERT` from an empty `NAV` buffer.
 - In `INSERT`, press `ESC` to return to `NAV`.
+- In `NAV`, `Enter` is handled by MIV and does not insert a new line.
 - The status bar shows the current mode and a live command line while you type.
 
 ## Motion
@@ -24,10 +24,20 @@ This document contains the full MIV command list and the behavior of each comman
 - `e` moves to the end of the next word on the right.
 - `Q` moves to the end of the previous word on the left.
 - `E` moves to the start of the next word on the right.
+- `Alt+Q` jumps to the previous paragraph.
+- `Alt+E` jumps to the next paragraph.
 - `g` jumps to line 1.
 - `[count]g` jumps to the specified line number.
+- `m` jumps to 50% of the document.
+- `1m..9m` jumps to 10%..90% of the document.
 - `G` jumps to the bottom of the document.
+- `[count]G` jumps to the line that is `[count]` rows up from the bottom.
 - Counts work with motions, for example `10w`, `5a`, and `25g`.
+
+Paragraph rules:
+
+- A paragraph is a contiguous block of non-empty lines.
+- One or more empty lines between text blocks count as one separator.
 
 ## Editing
 
@@ -41,12 +51,12 @@ This document contains the full MIV command list and the behavior of each comman
 - `[count]y` yanks multiple lines.
 - `Y` yanks the next word.
 - `[count]Y` yanks multiple words.
-- `p` pastes after the cursor.
-- `P` pastes before the cursor.
-- `r<char>` replaces the character under the cursor with `<char>`.
+- `p` pastes before the cursor.
+- `P` pastes after the cursor.
+- `r<char>` replaces the character under the cursor with `<char>` and returns to `NAV`.
 - `R` deletes the current word and enters `INSERT`.
 - `§` toggles the case of the character under the cursor.
-- `shift+§` toggles the case of the word under the cursor.
+- `°` toggles the case of the word under the cursor.
 - `-` changes to the end of the line and enters `INSERT`.
 - `_` changes the whole line and enters `INSERT`.
 - `%` jumps to the matching bracket.
@@ -56,7 +66,6 @@ This document contains the full MIV command list and the behavior of each comman
 - `o` opens a new line below and enters `INSERT`.
 - `O` opens a new line above and enters `INSERT`.
 - `u` undoes the previous change.
-- `c` repeats the last repeatable command.
 - `.` repeats the last repeatable command.
 
 ## Search
@@ -78,8 +87,8 @@ Regex search uses standard JavaScript regular expressions. Example patterns:
 ## Replace
 
 - `=replacement` replaces all matches for the last search pattern.
-- `=replacement search` replaces all matches for `search` with `replacement`.
-- After a replace rule exists, `c` or `.` applies the current rule to the current or next match.
+- `=search replacement` replaces all matches for `search` with `replacement`.
+- After a replace rule exists, `.` applies the current rule to the current or next match.
 - After a replace rule exists, `Enter` in `NAV` applies the current rule to the current match.
 - After replacement, MIV reports `replaced X matches`.
 
@@ -87,7 +96,7 @@ Examples:
 
 - `/foo` then `=bar`
 - `,\d+` then `=NUMBER`
-- `=bar foo`
+- `=foo bar`
 
 ## Registers
 
@@ -96,7 +105,7 @@ Examples:
 - `p` pastes from the default register after the cursor.
 - `P` pastes from the default register before the cursor.
 - `1p..9p` pastes from a specific register after the cursor, for example `3p`.
-- `1P..9P` pastes from a specific register before the cursor, for example `3P`.
+- `1P..9P` pastes from a specific register after the cursor, for example `3P`.
 - `[count] [register]y` yanks lines into a register.
 - `[count] [register]x` deletes characters into a register.
 - `v` opens the register viewer so you can inspect the current contents of all registers.
@@ -113,7 +122,7 @@ Command format:
 - `5x` means delete 5 characters.
 - `5 3x` means delete 5 characters into register `3`.
 - `2p` means paste from register `2`.
-- `2P` means paste before the cursor from register `2`.
+- `2P` means paste after the cursor from register `2`.
 - `2v` means store the current clipboard in register `2`.
 
 Registers store:
@@ -133,7 +142,6 @@ Supported objects:
 - `(`
 - `[`
 - `{`
-- `<`
 
 Supported forms:
 
@@ -172,7 +180,7 @@ In some cases MIV intentionally replaces or remaps a key so it can use it for mo
 MIV-specific helper commands:
 
 - `Alt+z` sets an anchor.
-- `Alt+x` jumps to the current anchor.
+- `Alt+x` jumps to the current anchor, then toggles between anchor and the last jump origin.
 - `Ctrl+f` opens VS Code Find.
 - `Ctrl/Cmd+C` mirrors the clipboard into register `9`.
 - `Ctrl/Cmd+V` uses the normal VS Code paste path.

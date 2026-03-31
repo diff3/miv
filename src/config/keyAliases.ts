@@ -9,8 +9,8 @@ export function normalizeKey(key: string): string {
 }
 
 const CHAR_TO_PHYSICAL_KEY_ALIASES: Readonly<Record<string, string>> = {
-  '`': 'backquote',
   '§': 'backquote',
+  '°': 'shift+backquote',
   '-': 'minus',
   '_': 'shift+minus',
   '=': 'equal',
@@ -26,9 +26,9 @@ const CHAR_TO_PHYSICAL_KEY_ALIASES: Readonly<Record<string, string>> = {
   '\'': 'quote',
   '"': 'shift+quote',
   ',': 'comma',
-  '<': 'shift+comma',
+  '<': 'intlbackslash',
   '.': 'period',
-  '>': 'shift+period',
+  '>': 'shift+intlbackslash',
   '/': 'slash',
   '?': 'shift+slash',
   '!': 'shift+digit1',
@@ -38,7 +38,8 @@ const CHAR_TO_PHYSICAL_KEY_ALIASES: Readonly<Record<string, string>> = {
 };
 
 const PHYSICAL_TO_CHAR_KEY_ALIASES: Readonly<Record<string, string[]>> = {
-  backquote: ['`', '§'],
+  backquote: ['§'],
+  'shift+backquote': ['°'],
   minus: ['-'],
   equal: ['='],
   backslash: ['\\'],
@@ -56,7 +57,6 @@ const PHYSICAL_TO_CHAR_KEY_ALIASES: Readonly<Record<string, string[]>> = {
   'shift+bracketright': ['}'],
   'shift+semicolon': [':'],
   'shift+quote': ['"'],
-  'shift+comma': ['<'],
   'shift+period': ['>'],
   'shift+slash': ['?'],
   'shift+digit1': ['!'],
