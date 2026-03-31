@@ -2,7 +2,7 @@
   "name": "miv",
   "publisher": "Entropyswe",
   "displayName": "MIV",
-  "description": "Lightweight modal editing for VS Code inspired by Vim and designed for IDE workflows.",
+  "description": "Vim-inspired modal editing for VS Code without requiring Vim knowledge, built for fast navigation and practical IDE workflows.",
   "version": "1.0.12",
   "license": "MIT",
   "repository": {
@@ -18,6 +18,16 @@
   },
   "categories": [
     "Other"
+  ],
+  "keywords": [
+    "vim",
+    "vi",
+    "modal",
+    "modal editing",
+    "navigation",
+    "keyboard",
+    "editing",
+    "productivity"
   ],
   "activationEvents": [
     "onStartupFinished"

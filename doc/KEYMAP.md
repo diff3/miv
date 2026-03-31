@@ -1,13 +1,14 @@
 # MIV Keymap
 
-This document contains the full MIV command list and the behavior of each command in NAV mode.
+This document contains the full MIV command list and the behavior of each command in `NAV`, MIV's command mode.
 
 ## Modes
 
-- `ESC` enters `NAV` mode.
-- `i` enters `INSERT` mode.
-- `Space` enters `INSERT` from an empty NAV buffer.
+- `ESC` enters `NAV`, MIV's command mode.
+- `i` enters `INSERT`, normal typing mode.
+- `Space` enters `INSERT` from an empty `NAV` buffer.
 - In `INSERT`, press `ESC` to return to `NAV`.
+- The status bar shows the current mode and a live command line while you type.
 
 ## Motion
 
@@ -99,16 +100,21 @@ Examples:
 - `[count] [register]y` yanks lines into a register.
 - `[count] [register]x` deletes characters into a register.
 - `v` opens the register viewer so you can inspect the current contents of all registers.
+- `[register]v` stores the current clipboard in a numbered register, for example `2v`.
 
 Command format:
 
 - The first number is the count.
 - The second number is the target register.
 - The final letter is the action.
+- Counts and registers are separate.
+- `2y` means yank 2 lines.
 - `10 2y` means yank 10 lines into register `2`.
+- `5x` means delete 5 characters.
 - `5 3x` means delete 5 characters into register `3`.
 - `2p` means paste from register `2`.
 - `2P` means paste before the cursor from register `2`.
+- `2v` means store the current clipboard in register `2`.
 
 Registers store:
 
@@ -150,12 +156,23 @@ Delimiter matching is intentionally simple:
 - Scan right to the first matching closing delimiter.
 - Nested delimiter resolution is not performed.
 
-## Helpers
+## VS Code Commands
 
-- `Alt+a` navigates back in editor history.
-- `Alt+d` navigates forward in editor history.
+Most common VS Code commands still work alongside MIV.
+
+Examples:
+
+- Find
+- editor history navigation
+- clipboard copy and paste
+- command palette actions
+
+In some cases MIV intentionally replaces or remaps a key so it can use it for modal editing.
+
+MIV-specific helper commands:
+
 - `Alt+z` sets an anchor.
 - `Alt+x` jumps to the current anchor.
 - `Ctrl+f` opens VS Code Find.
 - `Ctrl/Cmd+C` mirrors the clipboard into register `9`.
-- `Ctrl/Cmd+V` pastes through the MIV paste path.
+- `Ctrl/Cmd+V` uses the normal VS Code paste path.
